@@ -18,8 +18,12 @@ class DashboardFragment : Fragment() {
         
         val viewModel = ViewModelProvider(this)[DashboardViewModel::class.java]
         
-        viewModel.text.observe(viewLifecycleOwner) { text ->
-            binding.textDashboard.text = text
+        viewModel.welcomeMessage.observe(viewLifecycleOwner) { message ->
+            binding.welcomeText.text = message
+        }
+        
+        viewModel.balance.observe(viewLifecycleOwner) { balance ->
+            binding.balanceAmount.text = balance
         }
         
         return binding.root

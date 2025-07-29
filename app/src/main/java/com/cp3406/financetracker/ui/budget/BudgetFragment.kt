@@ -13,20 +13,15 @@ class BudgetFragment : Fragment() {
     private var _binding: FragmentBudgetBinding? = null
     private val binding get() = _binding!!
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        val budgetViewModel = ViewModelProvider(this)[BudgetViewModel::class.java]
-
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentBudgetBinding.inflate(inflater, container, false)
-        val root: View = binding.root
-
-        budgetViewModel.text.observe(viewLifecycleOwner) {
-            binding.textBudget.text = it
+        
+        val budgetViewModel = ViewModelProvider(this)[BudgetViewModel::class.java]
+        budgetViewModel.text.observe(viewLifecycleOwner) { 
+            binding.textBudget.text = it 
         }
-        return root
+        
+        return binding.root
     }
 
     override fun onDestroyView() {

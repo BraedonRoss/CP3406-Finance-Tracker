@@ -13,20 +13,14 @@ class TransactionsFragment : Fragment() {
     private var _binding: FragmentTransactionsBinding? = null
     private val binding get() = _binding!!
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        val transactionsViewModel = ViewModelProvider(this)[TransactionsViewModel::class.java]
-
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentTransactionsBinding.inflate(inflater, container, false)
-        val root: View = binding.root
-
-        transactionsViewModel.text.observe(viewLifecycleOwner) {
-            binding.textTransactions.text = it
+        
+        ViewModelProvider(this)[TransactionsViewModel::class.java].text.observe(viewLifecycleOwner) { text ->
+            binding.textTransactions.text = text
         }
-        return root
+        
+        return binding.root
     }
 
     override fun onDestroyView() {
