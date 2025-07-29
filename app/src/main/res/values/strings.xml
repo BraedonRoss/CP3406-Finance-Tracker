@@ -1,3 +1,8 @@
 <resources>
-    <string name="app_name">Assignment2</string>
+    <string name="app_name">Finance Tracker</string>
+    <string name="title_dashboard">Dashboard</string>
+    <string name="title_budget">Budget</string>
+    <string name="title_transactions">Transactions</string>
+    <string name="title_goals">Goals</string>
+    <string name="title_profile">Profile</string>
 </resources>

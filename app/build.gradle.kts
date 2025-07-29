@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.assignment2"
+    namespace = "com.cp3406.financetracker"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.assignment2"
+        applicationId = "com.cp3406.financetracker"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -33,6 +33,9 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+    buildFeatures {
+        viewBinding = true
+    }
 }
 
 dependencies {
@@ -40,6 +43,11 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
+    implementation(libs.androidx.navigation.fragment)
+    implementation(libs.androidx.navigation.ui)
+    implementation(libs.androidx.lifecycle.viewmodel)
+    implementation(libs.androidx.lifecycle.livedata)
+    implementation(libs.androidx.fragment)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
