@@ -13,20 +13,16 @@ class DashboardFragment : Fragment() {
     private var _binding: FragmentDashboardBinding? = null
     private val binding get() = _binding!!
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        val dashboardViewModel = ViewModelProvider(this)[DashboardViewModel::class.java]
-
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
-        val root: View = binding.root
-
-        dashboardViewModel.text.observe(viewLifecycleOwner) {
-            binding.textDashboard.text = it
+        
+        val viewModel = ViewModelProvider(this)[DashboardViewModel::class.java]
+        
+        viewModel.text.observe(viewLifecycleOwner) { text ->
+            binding.textDashboard.text = text
         }
-        return root
+        
+        return binding.root
     }
 
     override fun onDestroyView() {
