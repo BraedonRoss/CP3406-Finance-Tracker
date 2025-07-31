@@ -14,5 +14,6 @@
 .cxx
 local.properties
 
-# Claude context file (local only)
+# Local development files
 CLAUDE.md
+.claude/
