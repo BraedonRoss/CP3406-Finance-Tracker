@@ -17,8 +17,9 @@ class BudgetFragment : Fragment() {
         _binding = FragmentBudgetBinding.inflate(inflater, container, false)
         
         val budgetViewModel = ViewModelProvider(this)[BudgetViewModel::class.java]
-        budgetViewModel.text.observe(viewLifecycleOwner) { 
-            binding.textBudget.text = it 
+        
+        budgetViewModel.text.observe(viewLifecycleOwner) { text -> 
+            binding.textBudget.text = text 
         }
         
         return binding.root

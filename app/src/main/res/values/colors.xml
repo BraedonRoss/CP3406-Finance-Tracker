@@ -14,6 +14,10 @@
     <color name="warning_orange">#FFFF9800</color>
     <color name="error_red">#FFF44336</color>
     
+    <!-- Transaction colors -->
+    <color name="income_green">#FF4CAF50</color>
+    <color name="expense_red">#FFF44336</color>
+    
     <!-- Neutral colors -->
     <color name="background_light">#FFFFFFFF</color>
     <color name="surface_light">#FFF5F5F5</color>

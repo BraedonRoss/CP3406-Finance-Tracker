@@ -10,27 +10,35 @@ import com.cp3406.financetracker.databinding.FragmentDashboardBinding
 
 class DashboardFragment : Fragment() {
 
-    private var _binding: FragmentDashboardBinding? = null
-    private val binding get() = _binding!!
+    private var binding: FragmentDashboardBinding? = null
+    private lateinit var dashboardVM: DashboardViewModel
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = FragmentDashboardBinding.inflate(inflater, container, false)
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        binding = FragmentDashboardBinding.inflate(inflater, container, false)
         
-        val viewModel = ViewModelProvider(this)[DashboardViewModel::class.java]
+        dashboardVM = ViewModelProvider(this).get(DashboardViewModel::class.java)
         
-        viewModel.welcomeMessage.observe(viewLifecycleOwner) { message ->
-            binding.welcomeText.text = message
+        setupObservers()
+        
+        return binding?.root
+    }
+    
+    private fun setupObservers() {
+        dashboardVM.welcomeMessage.observe(viewLifecycleOwner) {
+            binding?.welcomeText?.text = it
         }
         
-        viewModel.balance.observe(viewLifecycleOwner) { balance ->
-            binding.balanceAmount.text = balance
+        dashboardVM.balance.observe(viewLifecycleOwner) { balanceText ->
+            binding?.balanceAmount?.text = balanceText
         }
-        
-        return binding.root
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        _binding = null
+        binding = null
     }
 }
