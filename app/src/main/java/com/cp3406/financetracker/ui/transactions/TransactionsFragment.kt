@@ -12,15 +12,15 @@ class TransactionsFragment : Fragment() {
 
     private var _binding: FragmentTransactionsBinding? = null
     private val binding get() = _binding!!
-    
-    private lateinit var vm: TransactionsViewModel
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentTransactionsBinding.inflate(inflater, container, false)
         
-        vm = ViewModelProvider(this)[TransactionsViewModel::class.java]
+        val vm = ViewModelProvider(this)[TransactionsViewModel::class.java]
         
-        binding.emptyStateText.visibility = View.VISIBLE
+        vm.text.observe(viewLifecycleOwner) { text ->
+            binding.emptyStateText.text = text
+        }
         
         return binding.root
     }
