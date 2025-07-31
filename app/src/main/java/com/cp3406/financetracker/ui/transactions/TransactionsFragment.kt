@@ -1,28 +1,58 @@
 package com.cp3406.financetracker.ui.transactions
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.cp3406.financetracker.databinding.FragmentTransactionsBinding
 
 class TransactionsFragment : Fragment() {
 
     private var _binding: FragmentTransactionsBinding? = null
     private val binding get() = _binding!!
+    
+    private lateinit var transactionAdapter: TransactionAdapter
+    private lateinit var viewModel: TransactionsViewModel
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentTransactionsBinding.inflate(inflater, container, false)
         
-        val vm = ViewModelProvider(this)[TransactionsViewModel::class.java]
+        viewModel = ViewModelProvider(this)[TransactionsViewModel::class.java]
         
-        vm.text.observe(viewLifecycleOwner) { text ->
-            binding.emptyStateText.text = text
-        }
+        setupRecyclerView()
+        observeTransactions()
         
         return binding.root
+    }
+    
+    private fun setupRecyclerView() {
+        transactionAdapter = TransactionAdapter { transaction ->
+            // Handle transaction click - could show details, edit, etc.
+            Log.d("TransactionsFragment", "Clicked transaction: ${transaction.description}")
+        }
+        
+        binding.recyclerViewTransactions.apply {
+            layoutManager = LinearLayoutManager(context)
+            adapter = transactionAdapter
+        }
+    }
+    
+    private fun observeTransactions() {
+        viewModel.transactions.observe(viewLifecycleOwner) { transactions ->
+            if (transactions.isEmpty()) {
+                binding.emptyStateText.visibility = View.VISIBLE
+                binding.recyclerViewTransactions.visibility = View.GONE
+                binding.emptyStateText.text = "No transactions yet"
+            } else {
+                binding.emptyStateText.visibility = View.GONE
+                binding.recyclerViewTransactions.visibility = View.VISIBLE
+                transactionAdapter.submitList(transactions)
+            }
+        }
     }
 
     override fun onDestroyView() {
