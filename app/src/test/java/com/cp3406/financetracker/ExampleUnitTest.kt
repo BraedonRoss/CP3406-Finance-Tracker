@@ -1,4 +1,4 @@
-package com.example.assignment2
+package com.cp3406.financetracker
 
 import org.junit.Test
 
