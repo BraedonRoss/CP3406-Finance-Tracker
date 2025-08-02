@@ -28,6 +28,14 @@
             </intent-filter>
         </activity>
         
+        <!-- Minimal Safe Activity for Testing -->
+        <activity
+            android:name=".MinimalSafeActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.FinanceTracker" />
+        
+        
         <!-- Original XML-based MainActivity (backup) -->
         <activity
             android:name=".MainActivity"
@@ -49,6 +57,11 @@
             android:theme="@style/Theme.FinanceTracker" />
         
         <!-- Authentication Activities -->
+        <activity
+            android:name=".ui.auth.ComposeAuthActivity"
+            android:exported="false"
+            android:theme="@style/Theme.FinanceTracker" />
+            
         <activity
             android:name=".ui.auth.LoginActivity"
             android:exported="false" />

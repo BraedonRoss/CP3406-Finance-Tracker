@@ -1,8 +1,5 @@
 package com.cp3406.financetracker.ui.auth
 
-import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -14,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -24,36 +20,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cp3406.financetracker.R
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
-import com.google.firebase.auth.GoogleAuthProvider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ComposeLoginScreen(
-    onLoginSuccess: () -> Unit,
-    onNavigateToRegister: () -> Unit,
+fun ComposeRegisterScreen(
+    onRegisterSuccess: () -> Unit,
+    onNavigateToLogin: () -> Unit,
     authViewModel: AuthViewModel = viewModel()
 ) {
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    
-    val context = LocalContext.current
-    
-    // Google Sign-In setup
-    val googleSignInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(ApiException::class.java)!!
-            val credential = GoogleAuthProvider.getCredential(account.idToken!!, null)
-            authViewModel.signInWithCredential(credential)
-        } catch (e: ApiException) {
-            Log.w("ComposeLoginScreen", "Google sign in failed", e)
-        }
-    }
+    var confirmPassword by remember { mutableStateOf("") }
     
     // Observe auth state
     val authState by authViewModel.authState.observeAsState()
@@ -61,7 +40,7 @@ fun ComposeLoginScreen(
     LaunchedEffect(authState) {
         when (authState) {
             is AuthState.Success -> {
-                onLoginSuccess()
+                onRegisterSuccess()
             }
             else -> { /* Handle other states */ }
         }
@@ -99,7 +78,7 @@ fun ComposeLoginScreen(
         
         // Title
         Text(
-            text = "Finance Tracker",
+            text = "Create Account",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
@@ -107,11 +86,35 @@ fun ComposeLoginScreen(
         )
         
         Text(
-            text = "Track your finances with ease",
+            text = "Join Finance Tracker today",
             fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(bottom = 48.dp),
+            modifier = Modifier.padding(bottom = 32.dp),
             textAlign = TextAlign.Center
+        )
+        
+        // First Name field
+        OutlinedTextField(
+            value = firstName,
+            onValueChange = { firstName = it },
+            label = { Text("First Name") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            singleLine = true,
+            enabled = authState !is AuthState.Loading
+        )
+        
+        // Last Name field
+        OutlinedTextField(
+            value = lastName,
+            onValueChange = { lastName = it },
+            label = { Text("Last Name") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            singleLine = true,
+            enabled = authState !is AuthState.Loading
         )
         
         // Email field
@@ -134,11 +137,26 @@ fun ComposeLoginScreen(
             label = { Text("Password") },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 24.dp),
+                .padding(bottom = 16.dp),
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             singleLine = true,
             enabled = authState !is AuthState.Loading
+        )
+        
+        // Confirm Password field
+        OutlinedTextField(
+            value = confirmPassword,
+            onValueChange = { confirmPassword = it },
+            label = { Text("Confirm Password") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            singleLine = true,
+            enabled = authState !is AuthState.Loading,
+            isError = confirmPassword.isNotEmpty() && password != confirmPassword
         )
         
         // Error message
@@ -152,18 +170,37 @@ fun ComposeLoginScreen(
             )
         }
         
-        // Login button
+        // Password mismatch warning
+        if (confirmPassword.isNotEmpty() && password != confirmPassword) {
+            Text(
+                text = "Passwords do not match",
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 16.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+        
+        // Register button
         Button(
             onClick = {
-                if (email.isNotBlank() && password.isNotBlank()) {
-                    authViewModel.signInWithEmail(email, password)
+                if (firstName.isNotBlank() && 
+                    lastName.isNotBlank() && 
+                    email.isNotBlank() && 
+                    password.isNotBlank() && 
+                    password == confirmPassword
+                ) {
+                    authViewModel.createUserWithEmail(email, password, firstName, lastName)
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(bottom = 16.dp),
-            enabled = authState !is AuthState.Loading
+                .height(56.dp),
+            enabled = authState !is AuthState.Loading && 
+                     firstName.isNotBlank() && 
+                     lastName.isNotBlank() && 
+                     email.isNotBlank() && 
+                     password.isNotBlank() && 
+                     password == confirmPassword
         ) {
             if (authState is AuthState.Loading) {
                 CircularProgressIndicator(
@@ -171,38 +208,19 @@ fun ComposeLoginScreen(
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             } else {
-                Text("Sign In", fontSize = 16.sp)
+                Text("Create Account", fontSize = 16.sp)
             }
-        }
-        
-        // Google Sign-In button
-        OutlinedButton(
-            onClick = {
-                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                    .requestIdToken(context.getString(R.string.default_web_client_id))
-                    .requestEmail()
-                    .build()
-                
-                val googleSignInClient = GoogleSignIn.getClient(context, gso)
-                googleSignInLauncher.launch(googleSignInClient.signInIntent)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            enabled = authState !is AuthState.Loading
-        ) {
-            Text("Continue with Google", fontSize = 16.sp)
         }
         
         Spacer(modifier = Modifier.height(32.dp))
         
-        // Register link
+        // Login link
         TextButton(
-            onClick = onNavigateToRegister,
+            onClick = onNavigateToLogin,
             enabled = authState !is AuthState.Loading
         ) {
             Text(
-                text = "Don't have an account? Sign up",
+                text = "Already have an account? Sign in",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.primary
             )

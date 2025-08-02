@@ -33,30 +33,64 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.cp3406.financetracker.ui.auth.LoginActivity
+import com.cp3406.financetracker.ui.auth.ComposeAuthActivity
 import com.cp3406.financetracker.ui.budget.BudgetCategory
 import com.cp3406.financetracker.ui.budget.SafeBudgetViewModel
 import com.cp3406.financetracker.ui.theme.FinanceTrackerTheme
 import com.google.firebase.auth.FirebaseAuth
 
+data class SafeBottomNavItem(
+    val route: String,
+    val label: String,
+    val icon: ImageVector
+)
+
+val safeBottomNavItems = listOf(
+    SafeBottomNavItem("dashboard", "Dashboard", Icons.Default.Home),
+    SafeBottomNavItem("budget", "Budget", Icons.Default.AccountBox),
+    SafeBottomNavItem("transactions", "Transactions", Icons.Default.List),
+    SafeBottomNavItem("goals", "Goals", Icons.Default.Star),
+    SafeBottomNavItem("profile", "Profile", Icons.Default.Person)
+)
+
 class SafeComposeMainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Initialize dark mode before calling super.onCreate()
-        initializeDarkMode()
-        
         super.onCreate(savedInstanceState)
+        
+        // Initialize dark mode
+        initializeDarkMode()
 
-        // Check if user is authenticated
-        if (FirebaseAuth.getInstance().currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java))
+        try {
+            // Check if user is authenticated
+            val currentUser = FirebaseAuth.getInstance().currentUser
+            if (currentUser == null) {
+                startActivity(Intent(this, ComposeAuthActivity::class.java))
+                finish()
+                return
+            }
+        } catch (e: Exception) {
+            // If Firebase auth fails, go to login
+            startActivity(Intent(this, ComposeAuthActivity::class.java))
             finish()
             return
         }
 
         setContent {
             FinanceTrackerTheme {
-                SafeFinanceTrackerApp()
+                SafeFinanceTrackerApp(
+                    onSignOut = {
+                        try {
+                            FirebaseAuth.getInstance().signOut()
+                        } catch (e: Exception) {
+                            // Handle error gracefully
+                        }
+                        val intent = Intent(this@SafeComposeMainActivity, ComposeAuthActivity::class.java)
+                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        startActivity(intent)
+                        finish()
+                    }
+                )
             }
         }
     }
@@ -75,7 +109,9 @@ class SafeComposeMainActivity : ComponentActivity() {
 }
 
 @Composable
-fun SafeFinanceTrackerApp() {
+fun SafeFinanceTrackerApp(
+    onSignOut: () -> Unit = {}
+) {
     val navController = rememberNavController()
     
     Scaffold(
@@ -121,7 +157,9 @@ fun SafeFinanceTrackerApp() {
                 SafeGoalsScreen()
             }
             composable("profile") {
-                SafeProfileScreen()
+                SafeProfileScreen(
+                    onSignOut = onSignOut
+                )
             }
         }
     }
@@ -457,7 +495,7 @@ fun SafeBudgetScreen(
         // Budget Categories List
         items(budgetCategories.size) { index ->
             val category = budgetCategories[index]
-            RealBudgetCategoryItem(
+            SafeBudgetCategoryItem(
                 category = category,
                 onEdit = { categoryId, newAmount ->
                     viewModel.updateBudgetCategory(categoryId, newAmount)
@@ -509,13 +547,70 @@ fun SafeBudgetScreen(
     if (showAddCategoryDialog) {
         AddBudgetCategoryDialog(
             onDismiss = { showAddCategoryDialog = false },
-            onAdd = { name, amount, color ->
+            onAdd = { name: String, amount: Double, color: String ->
                 viewModel.addBudgetCategory(name, amount, color)
                 showAddCategoryDialog = false
             }
         )
     }
 }
+
+@Composable
+fun SafeBudgetCategoryItem(
+    category: BudgetCategory,
+    onEdit: (String, Double) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = category.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Budget: $${String.format("%.2f", category.budgetAmount)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = "Spent: $${String.format("%.2f", category.spentAmount)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (category.isOverBudget) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                Row {
+                    IconButton(onClick = { onEdit(category.id, category.budgetAmount) }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit")
+                    }
+                    IconButton(onClick = { onDelete(category.id) }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            LinearProgressIndicator(
+                progress = { (category.spentAmount / category.budgetAmount).coerceIn(0.0, 1.0).toFloat() },
+                modifier = Modifier.fillMaxWidth(),
+                color = if (category.isOverBudget) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
 
 @Composable
 fun SafeTransactionsScreen() {
@@ -637,7 +732,9 @@ fun SafeGoalsScreen() {
 }
 
 @Composable
-fun SafeProfileScreen() {
+fun SafeProfileScreen(
+    onSignOut: () -> Unit = {}
+) {
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var isDarkModeEnabled by remember { mutableStateOf(false) }
@@ -686,14 +783,22 @@ fun SafeProfileScreen() {
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     Text(
-                        text = "John Doe",
+                        text = try { 
+                            FirebaseAuth.getInstance().currentUser?.displayName ?: "User" 
+                        } catch (e: Exception) { 
+                            "User" 
+                        },
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     
                     Text(
-                        text = "john.doe@example.com",
+                        text = try { 
+                            FirebaseAuth.getInstance().currentUser?.email ?: "user@example.com" 
+                        } catch (e: Exception) { 
+                            "user@example.com" 
+                        },
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
@@ -912,10 +1017,7 @@ fun SafeProfileScreen() {
             Spacer(modifier = Modifier.height(8.dp))
             
             Button(
-                onClick = {
-                    FirebaseAuth.getInstance().signOut()
-                    // Note: In a real app, you'd restart or navigate to login
-                },
+                onClick = onSignOut,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error
@@ -1181,7 +1283,7 @@ private fun RealBudgetCategoryItem(
 }
 
 @Composable
-private fun AddBudgetCategoryDialog(
+fun AddBudgetCategoryDialog(
     onDismiss: () -> Unit,
     onAdd: (String, Double, String) -> Unit
 ) {
@@ -1593,16 +1695,3 @@ private fun CurrencySelectionDialog(
     )
 }
 
-data class SafeBottomNavItem(
-    val route: String,
-    val label: String,
-    val icon: ImageVector
-)
-
-val safeBottomNavItems = listOf(
-    SafeBottomNavItem("dashboard", "Dashboard", Icons.Default.Home),
-    SafeBottomNavItem("budget", "Budget", Icons.Default.AccountBox),
-    SafeBottomNavItem("transactions", "Transactions", Icons.Default.Menu),
-    SafeBottomNavItem("goals", "Goals", Icons.Default.Star),
-    SafeBottomNavItem("profile", "Profile", Icons.Default.Person)
-)
