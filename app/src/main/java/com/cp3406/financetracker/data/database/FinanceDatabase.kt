@@ -15,7 +15,7 @@ import com.cp3406.financetracker.data.entity.TransactionEntity
 
 @Database(
     entities = [TransactionEntity::class, BudgetEntity::class, GoalEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -35,7 +35,9 @@ abstract class FinanceDatabase : RoomDatabase() {
                     context.applicationContext,
                     FinanceDatabase::class.java,
                     "finance_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // This will clear all data when version changes
+                .build()
                 INSTANCE = instance
                 instance
             }
