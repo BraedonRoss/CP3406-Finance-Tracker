@@ -45,8 +45,6 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
             _averageProgress.value = avgProgress
         }
         
-        // Initialize with sample data if database is empty
-        initializeSampleData()
     }
 
     fun addGoal(
@@ -83,71 +81,6 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteGoal(goalId: Long) {
         viewModelScope.launch {
             repository.deleteGoalById(goalId)
-        }
-    }
-
-    private fun initializeSampleData() {
-        viewModelScope.launch {
-            val existingGoals = repository.getAllGoals().value
-            if (existingGoals.isNullOrEmpty()) {
-                val sampleGoals = listOf(
-                    GoalEntity(
-                        title = "Emergency Fund",
-                        description = "6 months of living expenses",
-                        targetAmount = 15000.00,
-                        currentAmount = 8750.00,
-                        targetDate = Calendar.getInstance().apply { 
-                            add(Calendar.MONTH, 8) 
-                        }.time,
-                        category = GoalCategory.EMERGENCY_FUND
-                    ),
-                    GoalEntity(
-                        title = "Europe Vacation",
-                        description = "Two weeks touring Europe next summer",
-                        targetAmount = 5000.00,
-                        currentAmount = 3200.00,
-                        targetDate = Calendar.getInstance().apply { 
-                            add(Calendar.MONTH, 6) 
-                        }.time,
-                        category = GoalCategory.VACATION
-                    ),
-                    GoalEntity(
-                        title = "New Car",
-                        description = "Down payment for reliable vehicle",
-                        targetAmount = 12000.00,
-                        currentAmount = 4500.00,
-                        targetDate = Calendar.getInstance().apply { 
-                            add(Calendar.MONTH, 10) 
-                        }.time,
-                        category = GoalCategory.CAR
-                    ),
-                    GoalEntity(
-                        title = "House Down Payment",
-                        description = "20% down payment for first home",
-                        targetAmount = 60000.00,
-                        currentAmount = 18500.00,
-                        targetDate = Calendar.getInstance().apply { 
-                            add(Calendar.YEAR, 3) 
-                        }.time,
-                        category = GoalCategory.HOME
-                    ),
-                    GoalEntity(
-                        title = "Professional Course",
-                        description = "Complete certification program",
-                        targetAmount = 2500.00,
-                        currentAmount = 2500.00,
-                        targetDate = Calendar.getInstance().apply { 
-                            add(Calendar.MONTH, -1) 
-                        }.time,
-                        category = GoalCategory.EDUCATION,
-                        isCompleted = true
-                    )
-                )
-                
-                sampleGoals.forEach { goal ->
-                    repository.insertGoal(goal)
-                }
-            }
         }
     }
 

@@ -27,8 +27,6 @@ class TransactionsViewModel(application: Application) : AndroidViewModel(applica
             _transactions.value = entities.map { it.toTransaction() }
         }
         
-        // Initialize with sample data if database is empty
-        initializeSampleData()
     }
 
     fun addTransaction(
@@ -54,70 +52,6 @@ class TransactionsViewModel(application: Application) : AndroidViewModel(applica
     fun deleteTransaction(transactionId: Long) {
         viewModelScope.launch {
             repository.deleteTransactionById(transactionId)
-        }
-    }
-
-    private fun initializeSampleData() {
-        viewModelScope.launch {
-            val existingTransactions = repository.getAllTransactions().value
-            if (existingTransactions.isNullOrEmpty()) {
-                val sampleTransactions = listOf(
-                    TransactionEntity(
-                        description = "Salary Deposit",
-                        amount = 3200.00,
-                        category = "Income",
-                        date = Calendar.getInstance().apply { 
-                            add(Calendar.DAY_OF_MONTH, -1)
-                            set(Calendar.HOUR_OF_DAY, 9)
-                        }.time,
-                        type = TransactionType.INCOME
-                    ),
-                    TransactionEntity(
-                        description = "Grocery Shopping",
-                        amount = 127.45,
-                        category = "Food & Dining",
-                        date = Calendar.getInstance().apply { 
-                            add(Calendar.DAY_OF_MONTH, 0)
-                            set(Calendar.HOUR_OF_DAY, 14)
-                        }.time,
-                        type = TransactionType.EXPENSE
-                    ),
-                    TransactionEntity(
-                        description = "Coffee",
-                        amount = 5.20,
-                        category = "Food & Dining",
-                        date = Calendar.getInstance().apply { 
-                            add(Calendar.DAY_OF_MONTH, 0)
-                            set(Calendar.HOUR_OF_DAY, 10)
-                        }.time,
-                        type = TransactionType.EXPENSE
-                    ),
-                    TransactionEntity(
-                        description = "Gas Station",
-                        amount = 62.00,
-                        category = "Transportation",
-                        date = Calendar.getInstance().apply { 
-                            add(Calendar.DAY_OF_MONTH, -1)
-                            set(Calendar.HOUR_OF_DAY, 16)
-                        }.time,
-                        type = TransactionType.EXPENSE
-                    ),
-                    TransactionEntity(
-                        description = "Netflix Subscription",
-                        amount = 17.99,
-                        category = "Entertainment",
-                        date = Calendar.getInstance().apply { 
-                            add(Calendar.DAY_OF_MONTH, -2)
-                            set(Calendar.HOUR_OF_DAY, 12)
-                        }.time,
-                        type = TransactionType.EXPENSE
-                    )
-                )
-                
-                sampleTransactions.forEach { transaction ->
-                    repository.insertTransaction(transaction)
-                }
-            }
         }
     }
 

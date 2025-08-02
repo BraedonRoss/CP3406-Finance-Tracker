@@ -53,6 +53,13 @@ class GoalsFragment : Fragment() {
         binding.addGoalButton.setOnClickListener {
             // TODO: Open add goal dialog/screen
             Log.d("GoalsFragment", "Add goal button clicked")
+            android.widget.Toast.makeText(context, "Add goal functionality coming soon!", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        
+        binding.addGoalButtonEmpty.setOnClickListener {
+            // TODO: Open add goal dialog/screen
+            Log.d("GoalsFragment", "Add goal button (empty state) clicked")
+            android.widget.Toast.makeText(context, "Add goal functionality coming soon!", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
     

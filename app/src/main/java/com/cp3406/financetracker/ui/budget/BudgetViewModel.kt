@@ -48,8 +48,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         
-        // Initialize with sample data if database is empty
-        initializeSampleData()
     }
 
     fun addBudget(category: String, budgetAmount: Double, icon: String, color: String = "#4CAF50") {
@@ -127,63 +125,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             _budgetCategories.postValue(budgetCategories)
             _totalBudget.postValue(budgetCategories.sumOf { it.budgetAmount })
             _totalSpent.postValue(budgetCategories.sumOf { it.spentAmount })
-        }
-    }
-
-    private fun initializeSampleData() {
-        viewModelScope.launch {
-            val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
-            val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-            
-            val existingBudgets = budgetRepository.getBudgetsForMonth(currentMonth, currentYear).value
-            if (existingBudgets.isNullOrEmpty()) {
-                val sampleBudgets = listOf(
-                    BudgetEntity(
-                        category = "Food & Dining",
-                        budgetAmount = 500.0,
-                        month = currentMonth,
-                        year = currentYear,
-                        icon = "🍽️",
-                        color = "#4CAF50"
-                    ),
-                    BudgetEntity(
-                        category = "Transportation",
-                        budgetAmount = 300.0,
-                        month = currentMonth,
-                        year = currentYear,
-                        icon = "🚗",
-                        color = "#2196F3"
-                    ),
-                    BudgetEntity(
-                        category = "Entertainment",
-                        budgetAmount = 200.0,
-                        month = currentMonth,
-                        year = currentYear,
-                        icon = "🎬",
-                        color = "#FF9800"
-                    ),
-                    BudgetEntity(
-                        category = "Shopping",
-                        budgetAmount = 400.0,
-                        month = currentMonth,
-                        year = currentYear,
-                        icon = "🛍️",
-                        color = "#9C27B0"
-                    ),
-                    BudgetEntity(
-                        category = "Bills & Utilities",
-                        budgetAmount = 800.0,
-                        month = currentMonth,
-                        year = currentYear,
-                        icon = "💡",
-                        color = "#F44336"
-                    )
-                )
-                
-                sampleBudgets.forEach { budget ->
-                    budgetRepository.insertBudget(budget)
-                }
-            }
         }
     }
 }

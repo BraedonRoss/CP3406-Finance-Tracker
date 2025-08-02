@@ -26,6 +26,7 @@ class BudgetFragment : Fragment() {
         viewModel = ViewModelProvider(this, ViewModelProvider.AndroidViewModelFactory.getInstance(requireActivity().application))[BudgetViewModel::class.java]
         
         setupRecyclerView()
+        setupClickListeners()
         observeViewModel()
         
         return binding.root
@@ -39,9 +40,23 @@ class BudgetFragment : Fragment() {
         }
     }
     
+    private fun setupClickListeners() {
+        binding.addBudgetButton.setOnClickListener {
+            // TODO: Open add budget dialog
+            android.widget.Toast.makeText(context, "Add budget functionality coming soon!", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
     private fun observeViewModel() {
         viewModel.budgetCategories.observe(viewLifecycleOwner) { categories ->
-            budgetAdapter.submitList(categories)
+            if (categories.isEmpty()) {
+                binding.budgetCategoriesRecycler.visibility = View.GONE
+                binding.emptyStateBudget.visibility = View.VISIBLE
+            } else {
+                binding.budgetCategoriesRecycler.visibility = View.VISIBLE
+                binding.emptyStateBudget.visibility = View.GONE
+                budgetAdapter.submitList(categories)
+            }
         }
         
         viewModel.totalBudget.observe(viewLifecycleOwner) { total ->
