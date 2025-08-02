@@ -2,6 +2,7 @@ package com.cp3406.financetracker.ui.profile
 
 import android.app.Application
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -35,6 +36,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         goalRepository = GoalRepository(database.goalDao())
         
         loadUserProfile()
+        applyDarkModeFromPreferences()
     }
 
     private fun loadUserProfile() {
@@ -85,6 +87,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             
             // Save to SharedPreferences
             sharedPrefs.edit().putBoolean("dark_mode_enabled", enabled).apply()
+            
+            // Apply dark mode immediately
+            applyDarkMode(enabled)
             
             _userProfile.value?.let { profile ->
                 _userProfile.value = profile.copy(preferences = updatedPrefs)
@@ -160,11 +165,28 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 biometricLockEnabled = true
             )
             
+            // Apply light mode when data is cleared
+            applyDarkMode(false)
+            
             _preferences.value = defaultPreferences
             
             _userProfile.value?.let { profile ->
                 _userProfile.value = profile.copy(preferences = defaultPreferences)
             }
         }
+    }
+    
+    private fun applyDarkModeFromPreferences() {
+        val isDarkModeEnabled = sharedPrefs.getBoolean("dark_mode_enabled", false)
+        applyDarkMode(isDarkModeEnabled)
+    }
+    
+    private fun applyDarkMode(enabled: Boolean) {
+        val nightMode = if (enabled) {
+            AppCompatDelegate.MODE_NIGHT_YES
+        } else {
+            AppCompatDelegate.MODE_NIGHT_NO
+        }
+        AppCompatDelegate.setDefaultNightMode(nightMode)
     }
 }
