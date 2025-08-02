@@ -4,10 +4,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.cp3406.financetracker.databinding.FragmentBudgetBinding
+import com.cp3406.financetracker.ui.dialogs.AddBudgetDialog
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -42,9 +44,20 @@ class BudgetFragment : Fragment() {
     
     private fun setupClickListeners() {
         binding.addBudgetButton.setOnClickListener {
-            // TODO: Open add budget dialog
-            android.widget.Toast.makeText(context, "Add budget functionality coming soon!", android.widget.Toast.LENGTH_SHORT).show()
+            showAddBudgetDialog()
         }
+        
+        binding.fabAddBudget.setOnClickListener {
+            showAddBudgetDialog()
+        }
+    }
+    
+    private fun showAddBudgetDialog() {
+        val dialog = AddBudgetDialog(requireContext()) { category, amount, icon, color ->
+            viewModel.addBudget(category, amount, icon, color)
+            Toast.makeText(context, "Budget category '$category' created successfully!", Toast.LENGTH_SHORT).show()
+        }
+        dialog.show()
     }
     
     private fun observeViewModel() {
