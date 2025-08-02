@@ -42,6 +42,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _totalSavingsProgress = MediatorLiveData<String>()
     val totalSavingsProgress: LiveData<String> = _totalSavingsProgress
     
+    private val _recentTransactions = MediatorLiveData<List<com.cp3406.financetracker.ui.transactions.Transaction>>()
+    val recentTransactions: LiveData<List<com.cp3406.financetracker.ui.transactions.Transaction>> = _recentTransactions
+    
     init {
         val database = FinanceDatabase.getDatabase(application)
         transactionRepository = TransactionRepository(database.transactionDao())
@@ -141,6 +144,27 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _totalSavingsProgress.addSource(allGoals) { goals ->
             val totalSaved = goals.sumOf { it.currentAmount }
             _totalSavingsProgress.postValue(currencyFormatter.format(totalSaved))
+        }
+        
+        // Observe recent transactions (last 5)
+        _recentTransactions.addSource(allTransactions) { transactions ->
+            val recentList = transactions.take(5).map { entity ->
+                com.cp3406.financetracker.ui.transactions.Transaction(
+                    id = entity.id.toString(),
+                    description = entity.description,
+                    amount = entity.amount,
+                    category = entity.category,
+                    date = entity.date,
+                    type = when(entity.type) {
+                        com.cp3406.financetracker.data.entity.TransactionType.INCOME -> 
+                            com.cp3406.financetracker.ui.transactions.TransactionType.INCOME
+                        com.cp3406.financetracker.data.entity.TransactionType.EXPENSE -> 
+                            com.cp3406.financetracker.ui.transactions.TransactionType.EXPENSE
+                    },
+                    merchantName = entity.notes ?: ""
+                )
+            }
+            _recentTransactions.postValue(recentList)
         }
     }
 }
