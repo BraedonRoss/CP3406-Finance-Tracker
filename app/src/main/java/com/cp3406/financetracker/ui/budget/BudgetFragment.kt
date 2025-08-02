@@ -23,7 +23,7 @@ class BudgetFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentBudgetBinding.inflate(inflater, container, false)
         
-        viewModel = ViewModelProvider(this)[BudgetViewModel::class.java]
+        viewModel = ViewModelProvider(this, ViewModelProvider.AndroidViewModelFactory.getInstance(requireActivity().application))[BudgetViewModel::class.java]
         
         setupRecyclerView()
         observeViewModel()

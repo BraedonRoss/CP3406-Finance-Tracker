@@ -28,7 +28,7 @@ class GoalsFragment : Fragment() {
     ): View {
         _binding = FragmentGoalsBinding.inflate(inflater, container, false)
         
-        viewModel = ViewModelProvider(this)[GoalsViewModel::class.java]
+        viewModel = ViewModelProvider(this, ViewModelProvider.AndroidViewModelFactory.getInstance(requireActivity().application))[GoalsViewModel::class.java]
         
         setupRecyclerView()
         setupClickListeners()

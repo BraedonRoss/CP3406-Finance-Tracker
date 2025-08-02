@@ -1,13 +1,17 @@
 package com.cp3406.financetracker.ui.profile
 
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-class ProfileViewModel : ViewModel() {
+class ProfileViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val sharedPrefs = application.getSharedPreferences("user_preferences", Context.MODE_PRIVATE)
+    
     private val _userProfile = MutableLiveData<UserProfile>()
     val userProfile: LiveData<UserProfile> = _userProfile
 
@@ -19,6 +23,14 @@ class ProfileViewModel : ViewModel() {
     }
 
     private fun loadUserProfile() {
+        // Load preferences from SharedPreferences
+        val savedPreferences = UserPreferences(
+            notificationsEnabled = sharedPrefs.getBoolean("notifications_enabled", true),
+            darkModeEnabled = sharedPrefs.getBoolean("dark_mode_enabled", false),
+            selectedCurrency = sharedPrefs.getString("selected_currency", "USD") ?: "USD",
+            biometricLockEnabled = sharedPrefs.getBoolean("biometric_lock_enabled", true)
+        )
+        
         // Mock user data - in real app this would come from authentication/database
         val mockProfile = UserProfile(
             id = "user123",
@@ -29,22 +41,20 @@ class ProfileViewModel : ViewModel() {
             memberSince = Calendar.getInstance().apply {
                 set(2024, Calendar.JANUARY, 15)
             }.time,
-            preferences = UserPreferences(
-                notificationsEnabled = true,
-                darkModeEnabled = false,
-                selectedCurrency = "USD",
-                biometricLockEnabled = true
-            )
+            preferences = savedPreferences
         )
 
         _userProfile.value = mockProfile
-        _preferences.value = mockProfile.preferences
+        _preferences.value = savedPreferences
     }
 
     fun updateNotificationSetting(enabled: Boolean) {
         _preferences.value?.let { currentPrefs ->
             val updatedPrefs = currentPrefs.copy(notificationsEnabled = enabled)
             _preferences.value = updatedPrefs
+            
+            // Save to SharedPreferences
+            sharedPrefs.edit().putBoolean("notifications_enabled", enabled).apply()
             
             // Update the profile with new preferences
             _userProfile.value?.let { profile ->
@@ -58,6 +68,9 @@ class ProfileViewModel : ViewModel() {
             val updatedPrefs = currentPrefs.copy(darkModeEnabled = enabled)
             _preferences.value = updatedPrefs
             
+            // Save to SharedPreferences
+            sharedPrefs.edit().putBoolean("dark_mode_enabled", enabled).apply()
+            
             _userProfile.value?.let { profile ->
                 _userProfile.value = profile.copy(preferences = updatedPrefs)
             }
@@ -69,6 +82,9 @@ class ProfileViewModel : ViewModel() {
             val updatedPrefs = currentPrefs.copy(biometricLockEnabled = enabled)
             _preferences.value = updatedPrefs
             
+            // Save to SharedPreferences
+            sharedPrefs.edit().putBoolean("biometric_lock_enabled", enabled).apply()
+            
             _userProfile.value?.let { profile ->
                 _userProfile.value = profile.copy(preferences = updatedPrefs)
             }
@@ -79,6 +95,9 @@ class ProfileViewModel : ViewModel() {
         _preferences.value?.let { currentPrefs ->
             val updatedPrefs = currentPrefs.copy(selectedCurrency = currency)
             _preferences.value = updatedPrefs
+            
+            // Save to SharedPreferences
+            sharedPrefs.edit().putString("selected_currency", currency).apply()
             
             _userProfile.value?.let { profile ->
                 _userProfile.value = profile.copy(preferences = updatedPrefs)

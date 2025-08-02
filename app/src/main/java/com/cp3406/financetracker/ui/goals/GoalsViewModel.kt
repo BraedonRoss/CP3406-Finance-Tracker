@@ -1,113 +1,180 @@
 package com.cp3406.financetracker.ui.goals
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.MediatorLiveData
+import androidx.lifecycle.viewModelScope
+import com.cp3406.financetracker.data.database.FinanceDatabase
+import com.cp3406.financetracker.data.entity.GoalEntity
+import com.cp3406.financetracker.data.entity.GoalCategory
+import com.cp3406.financetracker.data.repository.GoalRepository
+import kotlinx.coroutines.launch
 import java.util.*
 
-class GoalsViewModel : ViewModel() {
+class GoalsViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _goals = MutableLiveData<List<FinancialGoal>>()
+    private val repository: GoalRepository
+    private val _goals = MediatorLiveData<List<FinancialGoal>>()
     val goals: LiveData<List<FinancialGoal>> = _goals
 
-    private val _totalSaved = MutableLiveData<Double>()
+    private val _totalSaved = MediatorLiveData<Double>()
     val totalSaved: LiveData<Double> = _totalSaved
 
-    private val _averageProgress = MutableLiveData<Float>()
+    private val _averageProgress = MediatorLiveData<Float>()
     val averageProgress: LiveData<Float> = _averageProgress
 
     init {
-        loadGoals()
+        val database = FinanceDatabase.getDatabase(application)
+        repository = GoalRepository(database.goalDao())
+        
+        val entityGoals = repository.getAllGoals()
+        _goals.addSource(entityGoals) { entities ->
+            val financialGoals = entities.map { it.toFinancialGoal() }
+            _goals.value = financialGoals
+            
+            // Calculate totals
+            val totalSavedAmount = financialGoals.sumOf { it.currentAmount }
+            _totalSaved.value = totalSavedAmount
+            
+            // Calculate average progress
+            val activeGoals = financialGoals.filter { !it.isCompleted }
+            val avgProgress = if (activeGoals.isNotEmpty()) {
+                activeGoals.map { it.progressPercentage }.average().toFloat()
+            } else 0f
+            _averageProgress.value = avgProgress
+        }
+        
+        // Initialize with sample data if database is empty
+        initializeSampleData()
     }
 
-    private fun loadGoals() {
-        val mockGoals = listOf(
-            FinancialGoal(
-                id = "1",
-                title = "Emergency Fund",
-                description = "6 months of living expenses",
-                targetAmount = 15000.00,
-                currentAmount = 8750.00,
-                targetDate = Calendar.getInstance().apply { 
-                    add(Calendar.MONTH, 8) 
-                }.time,
-                category = GoalCategory.EMERGENCY_FUND,
-                priority = GoalPriority.HIGH
-            ),
-            FinancialGoal(
-                id = "2",
-                title = "Europe Vacation",
-                description = "Two weeks touring Europe next summer",
-                targetAmount = 5000.00,
-                currentAmount = 3200.00,
-                targetDate = Calendar.getInstance().apply { 
-                    add(Calendar.MONTH, 6) 
-                }.time,
-                category = GoalCategory.VACATION,
-                priority = GoalPriority.MEDIUM
-            ),
-            FinancialGoal(
-                id = "3",
-                title = "New Car",
-                description = "Down payment for reliable vehicle",
-                targetAmount = 12000.00,
-                currentAmount = 4500.00,
-                targetDate = Calendar.getInstance().apply { 
-                    add(Calendar.MONTH, 10) 
-                }.time,
-                category = GoalCategory.CAR,
-                priority = GoalPriority.HIGH
-            ),
-            FinancialGoal(
-                id = "4",
-                title = "Investment Portfolio",
-                description = "Build diversified investment portfolio",
-                targetAmount = 25000.00,
-                currentAmount = 12800.00,
-                targetDate = Calendar.getInstance().apply { 
-                    add(Calendar.YEAR, 2) 
-                }.time,
-                category = GoalCategory.INVESTMENT,
-                priority = GoalPriority.MEDIUM
-            ),
-            FinancialGoal(
-                id = "5",
-                title = "House Down Payment",
-                description = "20% down payment for first home",
-                targetAmount = 60000.00,
-                currentAmount = 18500.00,
-                targetDate = Calendar.getInstance().apply { 
-                    add(Calendar.YEAR, 3) 
-                }.time,
-                category = GoalCategory.HOME,
-                priority = GoalPriority.HIGH
-            ),
-            FinancialGoal(
-                id = "6",
-                title = "Professional Course",
-                description = "Complete certification program",
-                targetAmount = 2500.00,
-                currentAmount = 2500.00,
-                targetDate = Calendar.getInstance().apply { 
-                    add(Calendar.MONTH, -1) 
-                }.time,
-                category = GoalCategory.EDUCATION,
-                priority = GoalPriority.LOW,
-                isCompleted = true
+    fun addGoal(
+        title: String,
+        description: String,
+        targetAmount: Double,
+        targetDate: Date,
+        category: GoalCategory
+    ) {
+        viewModelScope.launch {
+            val goal = GoalEntity(
+                title = title,
+                description = description,
+                targetAmount = targetAmount,
+                targetDate = targetDate,
+                category = category
             )
-        )
+            repository.insertGoal(goal)
+        }
+    }
 
-        _goals.value = mockGoals.sortedByDescending { it.priority.ordinal }
-        
-        // Calculate totals
-        val totalSavedAmount = mockGoals.sumOf { it.currentAmount }
-        _totalSaved.value = totalSavedAmount
-        
-        // Calculate average progress
-        val activeGoals = mockGoals.filter { !it.isCompleted }
-        val avgProgress = if (activeGoals.isNotEmpty()) {
-            activeGoals.map { it.progressPercentage }.average().toFloat()
-        } else 0f
-        _averageProgress.value = avgProgress
+    fun updateGoalProgress(goalId: Long, newAmount: Double) {
+        viewModelScope.launch {
+            repository.updateGoalProgress(goalId, newAmount)
+        }
+    }
+
+    fun markGoalCompleted(goalId: Long) {
+        viewModelScope.launch {
+            repository.markGoalAsCompleted(goalId)
+        }
+    }
+
+    fun deleteGoal(goalId: Long) {
+        viewModelScope.launch {
+            repository.deleteGoalById(goalId)
+        }
+    }
+
+    private fun initializeSampleData() {
+        viewModelScope.launch {
+            val existingGoals = repository.getAllGoals().value
+            if (existingGoals.isNullOrEmpty()) {
+                val sampleGoals = listOf(
+                    GoalEntity(
+                        title = "Emergency Fund",
+                        description = "6 months of living expenses",
+                        targetAmount = 15000.00,
+                        currentAmount = 8750.00,
+                        targetDate = Calendar.getInstance().apply { 
+                            add(Calendar.MONTH, 8) 
+                        }.time,
+                        category = GoalCategory.EMERGENCY_FUND
+                    ),
+                    GoalEntity(
+                        title = "Europe Vacation",
+                        description = "Two weeks touring Europe next summer",
+                        targetAmount = 5000.00,
+                        currentAmount = 3200.00,
+                        targetDate = Calendar.getInstance().apply { 
+                            add(Calendar.MONTH, 6) 
+                        }.time,
+                        category = GoalCategory.VACATION
+                    ),
+                    GoalEntity(
+                        title = "New Car",
+                        description = "Down payment for reliable vehicle",
+                        targetAmount = 12000.00,
+                        currentAmount = 4500.00,
+                        targetDate = Calendar.getInstance().apply { 
+                            add(Calendar.MONTH, 10) 
+                        }.time,
+                        category = GoalCategory.CAR
+                    ),
+                    GoalEntity(
+                        title = "House Down Payment",
+                        description = "20% down payment for first home",
+                        targetAmount = 60000.00,
+                        currentAmount = 18500.00,
+                        targetDate = Calendar.getInstance().apply { 
+                            add(Calendar.YEAR, 3) 
+                        }.time,
+                        category = GoalCategory.HOME
+                    ),
+                    GoalEntity(
+                        title = "Professional Course",
+                        description = "Complete certification program",
+                        targetAmount = 2500.00,
+                        currentAmount = 2500.00,
+                        targetDate = Calendar.getInstance().apply { 
+                            add(Calendar.MONTH, -1) 
+                        }.time,
+                        category = GoalCategory.EDUCATION,
+                        isCompleted = true
+                    )
+                )
+                
+                sampleGoals.forEach { goal ->
+                    repository.insertGoal(goal)
+                }
+            }
+        }
+    }
+
+    private fun GoalEntity.toFinancialGoal(): FinancialGoal {
+        return FinancialGoal(
+            id = this.id.toString(),
+            title = this.title,
+            description = this.description,
+            targetAmount = this.targetAmount,
+            currentAmount = this.currentAmount,
+            targetDate = this.targetDate,
+            category = when(this.category) {
+                GoalCategory.EMERGENCY_FUND -> com.cp3406.financetracker.ui.goals.GoalCategory.EMERGENCY_FUND
+                GoalCategory.VACATION -> com.cp3406.financetracker.ui.goals.GoalCategory.VACATION
+                GoalCategory.HOME -> com.cp3406.financetracker.ui.goals.GoalCategory.HOME
+                GoalCategory.CAR -> com.cp3406.financetracker.ui.goals.GoalCategory.CAR
+                GoalCategory.EDUCATION -> com.cp3406.financetracker.ui.goals.GoalCategory.EDUCATION
+                GoalCategory.RETIREMENT -> com.cp3406.financetracker.ui.goals.GoalCategory.INVESTMENT
+                GoalCategory.OTHER -> com.cp3406.financetracker.ui.goals.GoalCategory.OTHER
+            },
+            priority = when {
+                this.category == GoalCategory.EMERGENCY_FUND -> GoalPriority.HIGH
+                this.targetAmount > 50000 -> GoalPriority.HIGH
+                this.targetAmount > 10000 -> GoalPriority.MEDIUM
+                else -> GoalPriority.LOW
+            },
+            isCompleted = this.isCompleted
+        )
     }
 }

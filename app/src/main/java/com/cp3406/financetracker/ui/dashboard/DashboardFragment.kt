@@ -20,7 +20,7 @@ class DashboardFragment : Fragment() {
     ): View? {
         binding = FragmentDashboardBinding.inflate(inflater, container, false)
         
-        dashboardVM = ViewModelProvider(this).get(DashboardViewModel::class.java)
+        dashboardVM = ViewModelProvider(this, ViewModelProvider.AndroidViewModelFactory.getInstance(requireActivity().application))[DashboardViewModel::class.java]
         
         setupObservers()
         
@@ -32,8 +32,29 @@ class DashboardFragment : Fragment() {
             binding?.welcomeText?.text = it
         }
         
-        dashboardVM.balance.observe(viewLifecycleOwner) { balanceText ->
+        dashboardVM.currentBalance.observe(viewLifecycleOwner) { balanceText ->
             binding?.balanceAmount?.text = balanceText
+        }
+        
+        dashboardVM.monthlyIncome.observe(viewLifecycleOwner) { income ->
+            binding?.monthlyIncomeAmount?.text = income
+        }
+        
+        dashboardVM.monthlyExpenses.observe(viewLifecycleOwner) { expenses ->
+            binding?.monthlyExpensesAmount?.text = expenses
+        }
+        
+        dashboardVM.budgetProgress.observe(viewLifecycleOwner) { progress ->
+            binding?.budgetProgressBar?.progress = progress
+            binding?.budgetProgressText?.text = "$progress%"
+        }
+        
+        dashboardVM.activeGoalsCount.observe(viewLifecycleOwner) { count ->
+            binding?.activeGoalsText?.text = count
+        }
+        
+        dashboardVM.totalSavingsProgress.observe(viewLifecycleOwner) { savings ->
+            binding?.totalSavingsAmount?.text = savings
         }
     }
 
