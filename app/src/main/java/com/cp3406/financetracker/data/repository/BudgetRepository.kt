@@ -34,11 +34,19 @@ class BudgetRepository(private val budgetDao: BudgetDao) {
         budgetDao.updateSpentAmount(category, month, year, spentAmount)
     }
     
+    suspend fun updateBudgetAmount(category: String, month: Int, year: Int, budgetAmount: Double) {
+        budgetDao.updateBudgetAmount(category, month, year, budgetAmount)
+    }
+    
     suspend fun deleteBudget(budget: BudgetEntity) {
         budgetDao.deleteBudget(budget)
     }
     
     suspend fun deleteBudgetById(id: Long) {
         budgetDao.deleteBudgetById(id)
+    }
+    
+    suspend fun deleteAllBudgets() {
+        budgetDao.deleteAllBudgets()
     }
 }

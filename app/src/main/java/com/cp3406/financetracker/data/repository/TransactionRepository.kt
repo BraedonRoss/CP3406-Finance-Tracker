@@ -43,4 +43,8 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     suspend fun deleteTransactionById(id: Long) {
         transactionDao.deleteTransactionById(id)
     }
+    
+    suspend fun deleteAllTransactions() {
+        transactionDao.deleteAllTransactions()
+    }
 }

@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.cp3406.financetracker.databinding.FragmentBudgetBinding
 import com.cp3406.financetracker.ui.dialogs.AddBudgetDialog
+import com.cp3406.financetracker.ui.dialogs.EditBudgetDialog
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -35,7 +36,9 @@ class BudgetFragment : Fragment() {
     }
     
     private fun setupRecyclerView() {
-        budgetAdapter = BudgetCategoryAdapter()
+        budgetAdapter = BudgetCategoryAdapter { budgetCategory ->
+            showEditBudgetDialog(budgetCategory)
+        }
         binding.budgetCategoriesRecycler.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = budgetAdapter
@@ -57,6 +60,32 @@ class BudgetFragment : Fragment() {
             viewModel.addBudget(category, amount, icon, color)
             Toast.makeText(context, "Budget category '$category' created successfully!", Toast.LENGTH_SHORT).show()
         }
+        dialog.show()
+    }
+    
+    private fun showEditBudgetDialog(budgetCategory: BudgetCategory) {
+        val dialog = EditBudgetDialog(
+            context = requireContext(),
+            budgetCategory = budgetCategory,
+            onBudgetUpdated = { categoryId, newAmount ->
+                viewModel.updateBudgetAmount(categoryId, newAmount)
+            },
+            onSpentUpdated = { categoryId, newSpentAmount ->
+                viewModel.updateSpentAmount(categoryId, newSpentAmount)
+            },
+            onBudgetDeleted = { categoryId ->
+                viewModel.deleteBudgetCategory(categoryId)
+            },
+            onSpendingAdded = { category, amount, description ->
+                viewModel.addSpendingTransaction(category, amount, description)
+                Toast.makeText(context, "Added ${NumberFormat.getCurrencyInstance().format(amount)} expense to $category", Toast.LENGTH_SHORT).show()
+                
+                // Force refresh the adapter after a short delay to ensure database update is complete
+                binding.budgetCategoriesRecycler.postDelayed({
+                    budgetAdapter.notifyDataSetChanged()
+                }, 200)
+            }
+        )
         dialog.show()
     }
     

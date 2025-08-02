@@ -10,24 +10,32 @@ import com.cp3406.financetracker.databinding.ItemBudgetCategoryBinding
 import java.text.NumberFormat
 import java.util.Locale
 
-class BudgetCategoryAdapter : ListAdapter<BudgetCategory, BudgetCategoryAdapter.ViewHolder>(BudgetDiffCallback()) {
+class BudgetCategoryAdapter(
+    private val onItemClick: (BudgetCategory) -> Unit = {}
+) : ListAdapter<BudgetCategory, BudgetCategoryAdapter.ViewHolder>(BudgetDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val binding = ItemBudgetCategoryBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
         )
-        return ViewHolder(binding)
+        return ViewHolder(binding, onItemClick)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
 
-    class ViewHolder(private val binding: ItemBudgetCategoryBinding) : RecyclerView.ViewHolder(binding.root) {
+    class ViewHolder(
+        private val binding: ItemBudgetCategoryBinding,
+        private val onItemClick: (BudgetCategory) -> Unit
+    ) : RecyclerView.ViewHolder(binding.root) {
         
         private val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.US)
 
         fun bind(category: BudgetCategory) {
+            binding.root.setOnClickListener {
+                onItemClick(category)
+            }
             binding.apply {
                 categoryName.text = category.name
                 categoryPercentage.text = "${category.progressPercentage.toInt()}%"

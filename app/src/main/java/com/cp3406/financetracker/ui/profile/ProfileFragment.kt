@@ -66,6 +66,10 @@ class ProfileFragment : Fragment() {
                 showSignOutDialog()
             }
             
+            clearDataSetting.setOnClickListener {
+                showClearDataDialog()
+            }
+            
             // Switch listeners
             notificationsSwitch.setOnCheckedChangeListener { _, isChecked ->
                 viewModel.updateNotificationSetting(isChecked)
@@ -169,6 +173,19 @@ class ProfileFragment : Fragment() {
                 // In real app, this would handle authentication logout
             }
             .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+    
+    private fun showClearDataDialog() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("⚠️ Clear All Data")
+            .setMessage("This will permanently delete all your data including:\n\n• All transactions\n• All budget categories\n• All goals\n• All settings\n\nThis action cannot be undone. Are you sure you want to continue?")
+            .setPositiveButton("Clear All Data") { _, _ ->
+                viewModel.clearAllData()
+                Toast.makeText(context, "All data has been cleared successfully", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
+            .setIcon(android.R.drawable.ic_dialog_alert)
             .show()
     }
 

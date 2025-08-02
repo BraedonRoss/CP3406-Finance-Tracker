@@ -28,9 +28,15 @@ interface BudgetDao {
     @Query("UPDATE budgets SET spentAmount = :spentAmount WHERE category = :category AND month = :month AND year = :year")
     suspend fun updateSpentAmount(category: String, month: Int, year: Int, spentAmount: Double)
     
+    @Query("UPDATE budgets SET budgetAmount = :budgetAmount WHERE category = :category AND month = :month AND year = :year")
+    suspend fun updateBudgetAmount(category: String, month: Int, year: Int, budgetAmount: Double)
+    
     @Delete
     suspend fun deleteBudget(budget: BudgetEntity)
     
     @Query("DELETE FROM budgets WHERE id = :id")
     suspend fun deleteBudgetById(id: Long)
+    
+    @Query("DELETE FROM budgets")
+    suspend fun deleteAllBudgets()
 }

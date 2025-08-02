@@ -46,4 +46,8 @@ class GoalRepository(private val goalDao: GoalDao) {
     suspend fun deleteGoalById(id: Long) {
         goalDao.deleteGoalById(id)
     }
+    
+    suspend fun deleteAllGoals() {
+        goalDao.deleteAllGoals()
+    }
 }

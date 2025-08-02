@@ -5,12 +5,22 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
+import com.cp3406.financetracker.data.database.FinanceDatabase
+import com.cp3406.financetracker.data.repository.BudgetRepository
+import com.cp3406.financetracker.data.repository.GoalRepository
+import com.cp3406.financetracker.data.repository.TransactionRepository
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
 
     private val sharedPrefs = application.getSharedPreferences("user_preferences", Context.MODE_PRIVATE)
+    
+    private val transactionRepository: TransactionRepository
+    private val budgetRepository: BudgetRepository
+    private val goalRepository: GoalRepository
     
     private val _userProfile = MutableLiveData<UserProfile>()
     val userProfile: LiveData<UserProfile> = _userProfile
@@ -19,6 +29,11 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     val preferences: LiveData<UserPreferences> = _preferences
 
     init {
+        val database = FinanceDatabase.getDatabase(application)
+        transactionRepository = TransactionRepository(database.transactionDao())
+        budgetRepository = BudgetRepository(database.budgetDao())
+        goalRepository = GoalRepository(database.goalDao())
+        
         loadUserProfile()
     }
 
@@ -119,6 +134,37 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             "AUD" -> "AUD (A$)"
             "CAD" -> "CAD (C$)"
             else -> currencyCode
+        }
+    }
+    
+    fun clearAllData() {
+        viewModelScope.launch {
+            // Clear all database tables
+            transactionRepository.deleteAllTransactions()
+            budgetRepository.deleteAllBudgets()
+            goalRepository.deleteAllGoals()
+            
+            // Clear SharedPreferences (except basic user settings)
+            sharedPrefs.edit()
+                .remove("notifications_enabled")
+                .remove("dark_mode_enabled") 
+                .remove("selected_currency")
+                .remove("biometric_lock_enabled")
+                .apply()
+            
+            // Reset preferences to defaults
+            val defaultPreferences = UserPreferences(
+                notificationsEnabled = true,
+                darkModeEnabled = false,
+                selectedCurrency = "USD",
+                biometricLockEnabled = true
+            )
+            
+            _preferences.value = defaultPreferences
+            
+            _userProfile.value?.let { profile ->
+                _userProfile.value = profile.copy(preferences = defaultPreferences)
+            }
         }
     }
 }
