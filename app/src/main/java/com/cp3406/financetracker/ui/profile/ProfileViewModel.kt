@@ -11,6 +11,7 @@ import com.cp3406.financetracker.data.database.FinanceDatabase
 import com.cp3406.financetracker.data.repository.BudgetRepository
 import com.cp3406.financetracker.data.repository.GoalRepository
 import com.cp3406.financetracker.data.repository.TransactionRepository
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -48,20 +49,38 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             biometricLockEnabled = sharedPrefs.getBoolean("biometric_lock_enabled", true)
         )
         
-        // Mock user data - in real app this would come from authentication/database
-        val mockProfile = UserProfile(
-            id = "user123",
-            firstName = "John",
-            lastName = "Doe", 
-            email = "john.doe@email.com",
-            avatarInitials = "JD",
-            memberSince = Calendar.getInstance().apply {
-                set(2024, Calendar.JANUARY, 15)
-            }.time,
-            preferences = savedPreferences
-        )
+        // Get user data from Firebase Authentication
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        val profile = if (currentUser != null) {
+            val displayName = currentUser.displayName ?: ""
+            val nameParts = displayName.split(" ")
+            val firstName = nameParts.firstOrNull() ?: "User"
+            val lastName = nameParts.drop(1).joinToString(" ").ifEmpty { "" }
+            val initials = "${firstName.firstOrNull() ?: "U"}${lastName.firstOrNull() ?: ""}"
+            
+            UserProfile(
+                id = currentUser.uid,
+                firstName = firstName,
+                lastName = lastName,
+                email = currentUser.email ?: "",
+                avatarInitials = initials,
+                memberSince = Date(currentUser.metadata?.creationTimestamp ?: System.currentTimeMillis()),
+                preferences = savedPreferences
+            )
+        } else {
+            // Fallback profile if no user is logged in
+            UserProfile(
+                id = "guest",
+                firstName = "Guest",
+                lastName = "User",
+                email = "",
+                avatarInitials = "GU",
+                memberSince = Date(),
+                preferences = savedPreferences
+            )
+        }
 
-        _userProfile.value = mockProfile
+        _userProfile.value = profile
         _preferences.value = savedPreferences
     }
 
@@ -188,5 +207,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             AppCompatDelegate.MODE_NIGHT_NO
         }
         AppCompatDelegate.setDefaultNightMode(nightMode)
+    }
+    
+    fun signOut() {
+        FirebaseAuth.getInstance().signOut()
     }
 }

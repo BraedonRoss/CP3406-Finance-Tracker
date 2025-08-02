@@ -1,6 +1,7 @@
 package com.cp3406.financetracker.ui.profile
 
 import android.app.AlertDialog
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -10,6 +11,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.cp3406.financetracker.databinding.FragmentProfileBinding
+import com.cp3406.financetracker.ui.auth.LoginActivity
 
 class ProfileFragment : Fragment() {
 
@@ -169,8 +171,14 @@ class ProfileFragment : Fragment() {
             .setTitle("Sign Out")
             .setMessage("Are you sure you want to sign out?")
             .setPositiveButton("Sign Out") { _, _ ->
+                viewModel.signOut()
                 Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
-                // In real app, this would handle authentication logout
+                
+                // Navigate to login screen
+                val intent = Intent(requireContext(), LoginActivity::class.java)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                startActivity(intent)
+                requireActivity().finish()
             }
             .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
             .show()
