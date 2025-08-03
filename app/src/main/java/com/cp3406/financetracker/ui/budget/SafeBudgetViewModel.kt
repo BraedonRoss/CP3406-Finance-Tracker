@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.cp3406.financetracker.data.database.FinanceDatabase
 import com.cp3406.financetracker.data.entity.TransactionType
 import com.cp3406.financetracker.data.repository.TransactionRepository
+import com.cp3406.financetracker.utils.UserUtils
 import kotlinx.coroutines.launch
 import java.util.*
 import com.google.gson.Gson
@@ -18,8 +19,13 @@ import com.google.gson.reflect.TypeToken
 class SafeBudgetViewModel(application: Application) : AndroidViewModel(application) {
 
     private val transactionRepository: TransactionRepository
-    private val sharedPreferences = application.getSharedPreferences("budget_categories", Context.MODE_PRIVATE)
     private val gson = Gson()
+    
+    // Use user-scoped SharedPreferences
+    private fun getUserPreferences(): android.content.SharedPreferences {
+        val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+        return getApplication<Application>().getSharedPreferences("budget_categories_$currentUserId", Context.MODE_PRIVATE)
+    }
     private val _storedCategories = MutableLiveData<List<BudgetCategory>>(emptyList())
     
     private val _budgetCategories = MediatorLiveData<List<BudgetCategory>>()
@@ -43,7 +49,8 @@ class SafeBudgetViewModel(application: Application) : AndroidViewModel(applicati
     }
     
     private fun observeTransactions() {
-        val allTransactions = transactionRepository.getAllTransactions()
+        val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+        val allTransactions = transactionRepository.getAllTransactions(currentUserId)
         
         _budgetCategories.addSource(_storedCategories) { categories ->
             updateBudgetCategoriesWithTransactions(categories, allTransactions.value ?: emptyList())
@@ -94,7 +101,8 @@ class SafeBudgetViewModel(application: Application) : AndroidViewModel(applicati
     
     private fun loadBudgetCategories(): List<BudgetCategory> {
         return try {
-            val json = sharedPreferences.getString("budget_categories_list", null)
+            val userPrefs = getUserPreferences()
+            val json = userPrefs.getString("budget_categories_list", null)
             if (json != null) {
                 val type = object : TypeToken<List<BudgetCategory>>() {}.type
                 gson.fromJson(json, type) ?: emptyList()
@@ -109,7 +117,8 @@ class SafeBudgetViewModel(application: Application) : AndroidViewModel(applicati
     private fun saveBudgetCategories(categories: List<BudgetCategory>) {
         try {
             val json = gson.toJson(categories)
-            sharedPreferences.edit()
+            val userPrefs = getUserPreferences()
+            userPrefs.edit()
                 .putString("budget_categories_list", json)
                 .apply()
         } catch (e: Exception) {

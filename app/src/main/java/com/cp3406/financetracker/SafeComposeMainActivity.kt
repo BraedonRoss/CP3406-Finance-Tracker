@@ -49,6 +49,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import java.util.UUID
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.cp3406.financetracker.ui.goals.FinancialGoal
+import com.cp3406.financetracker.ui.goals.GoalsViewModel
+import com.cp3406.financetracker.utils.UserUtils
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 data class SafeBottomNavItem(
     val route: String,
@@ -56,21 +61,6 @@ data class SafeBottomNavItem(
     val icon: ImageVector
 )
 
-data class FinancialGoal(
-    val id: String = "",
-    val title: String,
-    val targetAmount: Double,
-    val currentAmount: Double = 0.0,
-    val targetDate: String,
-    val description: String = "",
-    val isCompleted: Boolean = false
-) {
-    val progressPercentage: Int
-        get() = if (targetAmount > 0) ((currentAmount / targetAmount) * 100).toInt() else 0
-    
-    val remainingAmount: Double
-        get() = targetAmount - currentAmount
-}
 
 val safeBottomNavItems = listOf(
     SafeBottomNavItem("dashboard", "Dashboard", Icons.Default.Home),
@@ -233,9 +223,21 @@ fun SafeFinanceTrackerApp(
 
 @Composable
 fun SafeDashboardScreen(
-    transactionsViewModel: TransactionsViewModel = viewModel()
+    transactionsViewModel: TransactionsViewModel = viewModel(),
+    dashboardViewModel: com.cp3406.financetracker.ui.dashboard.DashboardViewModel = viewModel(),
+    budgetViewModel: SafeBudgetViewModel = viewModel(),
+    goalsViewModel: GoalsViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val currencyFormatter = remember { com.cp3406.financetracker.utils.CurrencyFormatter(context) }
+    
     val transactions by transactionsViewModel.transactions.observeAsState(emptyList())
+    val exchangeRates by dashboardViewModel.exchangeRates.observeAsState(emptyMap())
+    val budgetCategories by budgetViewModel.budgetCategories.observeAsState(emptyList())
+    val totalBudget by budgetViewModel.totalBudget.observeAsState(0.0)
+    val totalSpent by budgetViewModel.totalSpent.observeAsState(0.0)
+    val goals by goalsViewModel.goals.observeAsState(emptyList())
+    val totalSaved by goalsViewModel.totalSaved.observeAsState(0.0)
     
     // Calculate real-time values
     val currentBalance = transactions.sumOf { 
@@ -278,7 +280,7 @@ fun SafeDashboardScreen(
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                     )
                     Text(
-                        text = "$${String.format("%.2f", currentBalance)}",
+                        text = currencyFormatter.formatAmount(currentBalance, exchangeRates, "AUD"),
                         style = MaterialTheme.typography.displayMedium,
                         color = MaterialTheme.colorScheme.onPrimary,
                         fontWeight = FontWeight.Bold
@@ -287,6 +289,107 @@ fun SafeDashboardScreen(
             }
         }
 
+
+        // Budget Overview Section
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        text = "Budget Overview",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    val budgetUsedPercentage = if (totalBudget > 0) ((totalSpent / totalBudget) * 100).toInt() else 0
+                    val remaining = totalBudget - totalSpent
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Total Budget",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = currencyFormatter.formatAmount(totalBudget, exchangeRates, "AUD"),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                        
+                        Column {
+                            Text(
+                                text = "Spent",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = currencyFormatter.formatAmount(totalSpent, exchangeRates, "AUD"),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (budgetUsedPercentage > 80) Color(0xFFF44336) else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                        
+                        Column {
+                            Text(
+                                text = "Remaining",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = currencyFormatter.formatAmount(remaining, exchangeRates, "AUD"),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (remaining < 0) Color(0xFFF44336) else Color(0xFF4CAF50)
+                            )
+                        }
+                    }
+                    
+                    if (totalBudget > 0) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        LinearProgressIndicator(
+                            progress = { (budgetUsedPercentage / 100f).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = when {
+                                budgetUsedPercentage > 100 -> Color(0xFFF44336)
+                                budgetUsedPercentage > 80 -> Color(0xFFFF9800)
+                                else -> Color(0xFF4CAF50)
+                            }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = "$budgetUsedPercentage% of budget used • ${budgetCategories.size} categories",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No budget categories set up yet",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+        }
 
         // Savings Progress Section
         item {
@@ -303,6 +406,8 @@ fun SafeDashboardScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     
+                    val activeGoals = goals.filter { !it.isCompleted }
+                    
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -314,7 +419,7 @@ fun SafeDashboardScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                             Text(
-                                text = "0",
+                                text = "${activeGoals.size}",
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -328,10 +433,24 @@ fun SafeDashboardScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                             Text(
-                                text = "$0.00",
+                                text = currencyFormatter.formatAmount(totalSaved, exchangeRates, "AUD"),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        
+                        Column {
+                            Text(
+                                text = "Completed Goals",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = "${goals.count { it.isCompleted }}",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4CAF50)
                             )
                         }
                     }
@@ -382,9 +501,9 @@ fun SafeDashboardScreen(
                     category = transaction.category,
                     date = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault()).format(transaction.date),
                     amount = if (transaction.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME) 
-                        "+$${String.format("%.2f", transaction.amount)}" 
+                        "+${currencyFormatter.formatAmount(transaction.amount, exchangeRates, "AUD")}" 
                     else 
-                        "-$${String.format("%.2f", transaction.amount)}",
+                        "-${currencyFormatter.formatAmount(transaction.amount, exchangeRates, "AUD")}",
                     isIncome = transaction.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME
                 )
             }
@@ -393,19 +512,21 @@ fun SafeDashboardScreen(
     }
 }
 
+
 @Composable
 fun SafeBudgetScreen(
     viewModel: SafeBudgetViewModel = viewModel(),
-    transactionsViewModel: TransactionsViewModel = viewModel()
+    dashboardViewModel: com.cp3406.financetracker.ui.dashboard.DashboardViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val currencyFormatter = remember { com.cp3406.financetracker.utils.CurrencyFormatter(context) }
+    
     val budgetCategories by viewModel.budgetCategories.observeAsState(emptyList())
     val totalBudget by viewModel.totalBudget.observeAsState(0.0)
     val totalSpent by viewModel.totalSpent.observeAsState(0.0)
-    val isLoading by viewModel.isLoading.observeAsState(false)
+    val exchangeRates by dashboardViewModel.exchangeRates.observeAsState(emptyMap())
     
     var showAddCategoryDialog by remember { mutableStateOf(false) }
-    var showAddTransactionDialog by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf<BudgetCategory?>(null) }
     var showEditCategoryDialog by remember { mutableStateOf(false) }
     var categoryToEdit by remember { mutableStateOf<BudgetCategory?>(null) }
     
@@ -415,166 +536,128 @@ fun SafeBudgetScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Budget Management",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                IconButton(
-                    onClick = { viewModel.refreshBudgetData() }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Refresh Budget Data"
-                    )
-                }
-            }
-        }
-        
-        // Monthly Budget Overview
+        // Budget Summary Header
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Monthly Budget Overview",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    val remaining = totalBudget - totalSpent
-                    val progressPercentage = if (totalBudget > 0) (totalSpent / totalBudget * 100).toInt() else 0
-                    
-                    Text(
-                        text = "Total Budget: $${String.format("%.2f", totalBudget)} | " +
-                               "Used: $${String.format("%.2f", totalSpent)} | " +
-                               "Remaining: $${String.format("%.2f", remaining)}",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "Budget Overview",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     
-                    LinearProgressIndicator(
-                        progress = { progressPercentage / 100f },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        color = if (progressPercentage > 80) Color(0xFFF44336) else MaterialTheme.colorScheme.primary
-                    )
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = currencyFormatter.formatAmount(totalBudget, exchangeRates, "AUD"),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                text = "Total Budget",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                        
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = currencyFormatter.formatAmount(totalSpent, exchangeRates, "AUD"),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                text = "Total Spent",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
                     
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     
-                    Text(
-                        text = "$progressPercentage% of budget used",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-            }
-        }
-        
-        // Budget Categories Header with Add Button
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Budget Categories",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                FloatingActionButton(
-                    onClick = { showAddCategoryDialog = true },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add Budget Category"
-                    )
-                }
-            }
-        }
-        
-        // Loading Indicator
-        if (isLoading) {
-            item {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+                    Button(
+                        onClick = { showAddCategoryDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add Budget Category", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
         
         // Budget Categories List
-        items(budgetCategories.size) { index ->
-            val category = budgetCategories[index]
-            SafeBudgetCategoryItem(
-                category = category,
-                onEdit = { categoryId, _ ->
-                    categoryToEdit = category
-                    showEditCategoryDialog = true
-                },
-                onDelete = { categoryId ->
-                    viewModel.deleteBudgetCategory(categoryId)
-                },
-                onAddTransaction = {
-                    selectedCategory = category
-                    showAddTransactionDialog = true
-                }
-            )
-        }
-        
-        // Empty State
-        if (budgetCategories.isEmpty() && !isLoading) {
+        if (budgetCategories.isEmpty()) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
+                        modifier = Modifier.padding(32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
                             imageVector = Icons.Default.AccountBox,
                             contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "No budget categories yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            text = "No Budget Categories",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Start managing your finances by adding your first budget category",
+                            text = "Create budget categories to track your spending and stay within your financial goals.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
                     }
                 }
+            }
+        } else {
+            items(budgetCategories) { category ->
+                SafeBudgetCategoryItem(
+                    category = category,
+                    onEdit = { id, amount ->
+                        categoryToEdit = category
+                        showEditCategoryDialog = true
+                    },
+                    onDelete = { id ->
+                        viewModel.deleteBudgetCategory(id)
+                    },
+                    currencyFormatter = currencyFormatter,
+                    exchangeRates = exchangeRates
+                )
             }
         }
     }
@@ -583,34 +666,12 @@ fun SafeBudgetScreen(
     if (showAddCategoryDialog) {
         AddBudgetCategoryDialog(
             onDismiss = { showAddCategoryDialog = false },
-            onAdd = { name: String, amount: Double, color: String ->
+            onAdd = { name, amount, color ->
                 viewModel.addBudgetCategory(name, amount, color)
                 showAddCategoryDialog = false
             }
         )
     }
-    
-    // Add Transaction Dialog
-    if (showAddTransactionDialog && selectedCategory != null) {
-        AddTransactionDialog(
-            category = selectedCategory!!,
-            onDismiss = { 
-                showAddTransactionDialog = false
-                selectedCategory = null
-            },
-            onAdd = { description: String, amount: Double ->
-                transactionsViewModel.addTransaction(
-                    description = description,
-                    amount = amount,
-                    category = selectedCategory!!.name,
-                    type = TransactionType.EXPENSE
-                )
-                showAddTransactionDialog = false
-                selectedCategory = null
-            }
-        )
-    }
-    
     
     // Edit Category Dialog
     if (showEditCategoryDialog && categoryToEdit != null) {
@@ -620,7 +681,7 @@ fun SafeBudgetScreen(
                 showEditCategoryDialog = false
                 categoryToEdit = null
             },
-            onSave = { newAmount: Double ->
+            onSave = { newAmount ->
                 viewModel.updateBudgetCategory(categoryToEdit!!.id, newAmount)
                 showEditCategoryDialog = false
                 categoryToEdit = null
@@ -630,11 +691,165 @@ fun SafeBudgetScreen(
 }
 
 @Composable
+fun SafeTransactionsScreen(
+    transactionsViewModel: TransactionsViewModel = viewModel(),
+    dashboardViewModel: com.cp3406.financetracker.ui.dashboard.DashboardViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val currencyFormatter = remember { com.cp3406.financetracker.utils.CurrencyFormatter(context) }
+    
+    val transactions by transactionsViewModel.transactions.observeAsState(emptyList())
+    val exchangeRates by dashboardViewModel.exchangeRates.observeAsState(emptyMap())
+    
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Header
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Transaction History",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "${transactions.size} Transactions",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+        
+        // Transactions List
+        if (transactions.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.List,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No Transactions Yet",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Your transaction history will appear here once you start adding income and expenses.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+        } else {
+            items(transactions) { transaction ->
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Transaction Type Icon
+                        val (icon, color) = when (transaction.type) {
+                            com.cp3406.financetracker.ui.transactions.TransactionType.INCOME -> 
+                                Icons.Default.Add to Color(0xFF4CAF50)
+                            com.cp3406.financetracker.ui.transactions.TransactionType.EXPENSE -> 
+                                Icons.Default.Delete to MaterialTheme.colorScheme.error
+                        }
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    color = color.copy(alpha = 0.1f),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = color,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        // Transaction Details
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = transaction.description,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = transaction.category,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(transaction.date),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                        
+                        // Amount
+                        Text(
+                            text = "${if (transaction.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME) "+" else "-"}${currencyFormatter.formatAmount(transaction.amount, exchangeRates, "AUD")}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = when (transaction.type) {
+                                com.cp3406.financetracker.ui.transactions.TransactionType.INCOME -> Color(0xFF4CAF50)
+                                com.cp3406.financetracker.ui.transactions.TransactionType.EXPENSE -> MaterialTheme.colorScheme.error
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SafeBudgetCategoryItem(
     category: BudgetCategory,
     onEdit: (String, Double) -> Unit,
     onDelete: (String) -> Unit,
-    onAddTransaction: () -> Unit = {}
+    onAddTransaction: () -> Unit = {},
+    currencyFormatter: com.cp3406.financetracker.utils.CurrencyFormatter,
+    exchangeRates: Map<String, Double> = emptyMap()
 ) {
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -654,12 +869,12 @@ fun SafeBudgetCategoryItem(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Budget: $${String.format("%.2f", category.budgetAmount)}",
+                        text = "Budget: ${currencyFormatter.formatAmount(category.budgetAmount, exchangeRates, "AUD")}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
                     Text(
-                        text = "Spent: $${String.format("%.2f", category.spentAmount)}",
+                        text = "Spent: ${currencyFormatter.formatAmount(category.spentAmount, exchangeRates, "AUD")}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (category.isOverBudget) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )
@@ -705,133 +920,16 @@ fun SafeBudgetCategoryItem(
 }
 
 
-@Composable
-fun SafeTransactionsScreen(
-    transactionsViewModel: TransactionsViewModel = viewModel()
-) {
-    val transactions by transactionsViewModel.transactions.observeAsState(emptyList())
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(
-                text = "Transaction History",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Recent Transactions",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                TextButton(onClick = { /* Add transaction */ }) {
-                    Text("Add Transaction")
-                }
-            }
-        }
-        
-        // Transactions List
-        if (transactions.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.List,
-                            contentDescription = "No transactions",
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No transactions yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Start tracking your income and expenses by adding transactions from the Budget tab",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-        } else {
-            items(transactions.size) { index ->
-                val transaction = transactions[index]
-                TransactionItem(transaction = transaction)
-            }
-        }
-    }
-}
 
 @Composable
-fun TransactionItem(transaction: com.cp3406.financetracker.ui.transactions.Transaction) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = transaction.description,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = transaction.category,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Text(
-                    text = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(transaction.date),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
-            }
-            
-            Text(
-                text = if (transaction.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME) 
-                    "+$${String.format("%.2f", transaction.amount)}" 
-                else 
-                    "-$${String.format("%.2f", transaction.amount)}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (transaction.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME) 
-                    Color(0xFF4CAF50) 
-                else 
-                    Color(0xFFF44336)
-            )
-        }
-    }
-}
-
-@Composable
-fun SafeGoalsScreen() {
+fun TempGoalsScreen() {
     val context = LocalContext.current
     val gson = remember { Gson() }
     val transactionsViewModel: TransactionsViewModel = viewModel()
+    val dashboardViewModel: com.cp3406.financetracker.ui.dashboard.DashboardViewModel = viewModel()
+    val currencyFormatter = remember { com.cp3406.financetracker.utils.CurrencyFormatter(context) }
     
+    val exchangeRates by dashboardViewModel.exchangeRates.observeAsState(emptyMap())
     var goals by remember { mutableStateOf<List<FinancialGoal>>(emptyList()) }
     var showAddGoalDialog by remember { mutableStateOf(false) }
     var showEditGoalDialog by remember { mutableStateOf(false) }
@@ -946,7 +1044,7 @@ fun SafeGoalsScreen() {
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     Text(
-                        text = "Total Saved: $${String.format("%.2f", totalSaved)} of $${String.format("%.2f", totalTarget)}",
+                        text = "Total Saved: ${currencyFormatter.formatAmount(totalSaved, exchangeRates, "AUD")} of ${currencyFormatter.formatAmount(totalTarget, exchangeRates, "AUD")}",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -1033,7 +1131,8 @@ fun SafeGoalsScreen() {
                         val updatedGoals = goals.filter { it.id != goal.id }
                         goals = updatedGoals
                         saveGoals(updatedGoals)
-                    }
+                    },
+                    exchangeRates = exchangeRates
                 )
             }
         }
@@ -1048,8 +1147,10 @@ fun SafeGoalsScreen() {
                     id = UUID.randomUUID().toString(),
                     title = title,
                     targetAmount = target,
-                    targetDate = date,
-                    description = description
+                    currentAmount = 0.0,
+                    targetDate = java.util.Date(),
+                    description = description,
+                    category = com.cp3406.financetracker.ui.goals.GoalCategory.OTHER
                 )
                 val updatedGoals = goals + newGoal
                 goals = updatedGoals
@@ -1085,6 +1186,7 @@ fun SafeGoalsScreen() {
                 showAddProgressDialog = false
                 selectedGoal = null
             },
+            exchangeRates = exchangeRates,
             onAdd = { amount ->
                 val updatedGoal = selectedGoal!!.copy(
                     currentAmount = selectedGoal!!.currentAmount + amount,
@@ -1100,7 +1202,7 @@ fun SafeGoalsScreen() {
                     amount = amount,
                     category = "Goals",
                     type = TransactionType.EXPENSE,
-                    notes = "Added $${String.format("%.2f", amount)} to goal '${selectedGoal!!.title}'"
+                    notes = "Added ${currencyFormatter.formatAmount(amount, exchangeRates, "AUD")} to goal '${selectedGoal!!.title}'"
                 )
                 
                 showAddProgressDialog = false
@@ -1117,6 +1219,7 @@ fun SafeGoalsScreen() {
                 showRemoveProgressDialog = false
                 selectedGoal = null
             },
+            exchangeRates = exchangeRates,
             onRemove = { amount: Double ->
                 val newAmount = maxOf(0.0, selectedGoal!!.currentAmount - amount)
                 val updatedGoal = selectedGoal!!.copy(
@@ -1133,7 +1236,7 @@ fun SafeGoalsScreen() {
                     amount = amount,
                     category = "Goals",
                     type = TransactionType.INCOME,
-                    notes = "Removed $${String.format("%.2f", amount)} from goal '${selectedGoal!!.title}'"
+                    notes = "Removed ${currencyFormatter.formatAmount(amount, exchangeRates, "AUD")} from goal '${selectedGoal!!.title}'"
                 )
                 
                 showRemoveProgressDialog = false
@@ -1152,10 +1255,15 @@ fun SafeProfileScreen(
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showDataWipeDialog by remember { mutableStateOf(false) }
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var selectedCurrency by remember { mutableStateOf("USD") }
+    var selectedCurrency by remember { mutableStateOf("AUD") }
     
     val context = LocalContext.current
+    
+    // Load saved currency preference
+    LaunchedEffect(Unit) {
+        val currencyPrefs = context.getSharedPreferences("currency_prefs", Context.MODE_PRIVATE)
+        selectedCurrency = currencyPrefs.getString("selected_currency", "AUD") ?: "AUD"
+    }
     val coroutineScope = rememberCoroutineScope()
     
     LazyColumn(
@@ -1284,30 +1392,6 @@ fun SafeProfileScreen(
                         onClick = { showCurrencyDialog = true }
                     )
                     
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    
-                    // Notifications Toggle
-                    ProfileSettingItem(
-                        icon = Icons.Default.Notifications,
-                        title = "Notifications",
-                        subtitle = if (notificationsEnabled) "Enabled" else "Disabled",
-                        trailing = {
-                            Switch(
-                                checked = notificationsEnabled,
-                                onCheckedChange = { notificationsEnabled = it }
-                            )
-                        }
-                    )
-                    
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    
-                    // Privacy Settings
-                    ProfileSettingItem(
-                        icon = Icons.Default.Lock,
-                        title = "Privacy & Security",
-                        subtitle = "Manage your privacy settings",
-                        onClick = { /* Handle privacy settings */ }
-                    )
                 }
             }
         }
@@ -1329,10 +1413,18 @@ fun SafeProfileScreen(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     ProfileSettingItem(
-                        icon = Icons.Default.Info,
-                        title = "Help & Support",
-                        subtitle = "Get help or contact support",
-                        onClick = { /* Handle help */ }
+                        icon = Icons.Default.Add,
+                        title = "Export Data",
+                        subtitle = "Export your financial data to CSV",
+                        onClick = { 
+                            // Export data functionality
+                            try {
+                                // This would normally export data to CSV
+                                android.widget.Toast.makeText(context, "Data export feature coming soon!", android.widget.Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(context, "Export failed", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
                     
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -1341,17 +1433,41 @@ fun SafeProfileScreen(
                         icon = Icons.Default.Share,
                         title = "Share App",
                         subtitle = "Tell friends about Finance Tracker",
-                        onClick = { /* Handle share */ }
+                        onClick = { 
+                            try {
+                                val shareIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, "Check out Finance Tracker - a great app for managing your finances!")
+                                    putExtra(Intent.EXTRA_SUBJECT, "Finance Tracker App")
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Share Finance Tracker"))
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(context, "Sharing failed", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
                     
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
                     ProfileSettingItem(
-                        icon = Icons.Default.Star,
-                        title = "Rate App",
-                        subtitle = "Rate us on the app store",
-                        onClick = { /* Handle rating */ }
+                        icon = Icons.Default.Info,
+                        title = "Help & Support",
+                        subtitle = "Get help or contact support",
+                        onClick = { 
+                            try {
+                                val emailIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                    data = android.net.Uri.parse("mailto:support@financetracker.com")
+                                    putExtra(Intent.EXTRA_SUBJECT, "Finance Tracker Support Request")
+                                    putExtra(Intent.EXTRA_TEXT, "Hi,\n\nI need help with the Finance Tracker app.\n\nIssue: \n\nDevice: Android\nApp Version: 1.0.0\n\nThanks!")
+                                }
+                                context.startActivity(emailIntent)
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(context, "Please install an email app", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
+                    
                 }
             }
         }
@@ -1372,15 +1488,6 @@ fun SafeProfileScreen(
                 Column(
                     modifier = Modifier.padding(16.dp)
                 ) {
-                    ProfileSettingItem(
-                        icon = Icons.Default.Build,
-                        title = "Export Data",
-                        subtitle = "Download your financial data",
-                        onClick = { /* Handle data export */ }
-                    )
-                    
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    
                     ProfileSettingItem(
                         icon = Icons.Default.Refresh,
                         title = "Backup & Sync",
@@ -1446,6 +1553,11 @@ fun SafeProfileScreen(
             onDismiss = { showCurrencyDialog = false },
             onCurrencySelected = { currency ->
                 selectedCurrency = currency
+                // Save currency preference
+                val currencyPrefs = context.getSharedPreferences("currency_prefs", Context.MODE_PRIVATE)
+                currencyPrefs.edit().putString("selected_currency", currency).apply()
+                // Refresh exchange rates for the new currency
+                // Note: Exchange rates will be refreshed on next screen load
                 showCurrencyDialog = false
             }
         )
@@ -1463,7 +1575,7 @@ fun SafeProfileScreen(
             },
             text = {
                 Text(
-                    text = "This will permanently delete all your financial data including transactions, budgets, and goals. This action cannot be undone.\n\nAre you sure you want to continue?"
+                    text = "This will permanently delete all your financial data including transactions, budgets, and goals. This action only affects your current account and will not impact other users' data. This cannot be undone.\n\nAre you sure you want to continue?"
                 )
             },
             confirmButton = {
@@ -1471,11 +1583,33 @@ fun SafeProfileScreen(
                     onClick = {
                         coroutineScope.launch {
                             try {
-                                val database = FinanceDatabase.getDatabase(context)
-                                database.clearAllTables()
-                                // Clear SharedPreferences as well
-                                val sharedPrefs = context.getSharedPreferences("user_preferences", Context.MODE_PRIVATE)
-                                sharedPrefs.edit().clear().apply()
+                                val currentUserId = UserUtils.getCurrentUserId()
+                                if (currentUserId != null) {
+                                    val database = FinanceDatabase.getDatabase(context)
+                                    
+                                    // Clear database tables for current user only
+                                    database.transactionDao().deleteAllUserTransactions(currentUserId)
+                                    database.budgetDao().deleteAllUserBudgets(currentUserId)
+                                    database.goalDao().deleteAllUserGoals(currentUserId)
+                                    
+                                    // Clear user-scoped SharedPreferences data
+                                    val userPrefs = context.getSharedPreferences("user_preferences", Context.MODE_PRIVATE)
+                                    userPrefs.edit().clear().apply()
+                                    
+                                    // Clear user-scoped budget categories
+                                    val budgetPrefs = context.getSharedPreferences("budget_categories_$currentUserId", Context.MODE_PRIVATE)
+                                    budgetPrefs.edit().clear().apply()
+                                    
+                                    val goalsPrefs = context.getSharedPreferences("goals_prefs", Context.MODE_PRIVATE)
+                                    goalsPrefs.edit().clear().apply()
+                                    
+                                    val currencyPrefs = context.getSharedPreferences("currency_prefs", Context.MODE_PRIVATE)
+                                    currencyPrefs.edit().clear().apply()
+                                    
+                                    // Clear any other app-specific preferences
+                                    val appPrefs = context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
+                                    appPrefs.edit().clear().apply()
+                                }
                                 showDataWipeDialog = false
                             } catch (e: Exception) {
                                 // Handle error
@@ -1785,7 +1919,9 @@ private fun SafeTransactionItem(
 private fun RealBudgetCategoryItem(
     category: BudgetCategory,
     onEdit: (String, Double) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    currencyFormatter: com.cp3406.financetracker.utils.CurrencyFormatter,
+    exchangeRates: Map<String, Double> = emptyMap()
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -1834,13 +1970,13 @@ private fun RealBudgetCategoryItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "$${String.format("%.2f", category.spentAmount)} / $${String.format("%.2f", category.budgetAmount)}",
+                    text = "${currencyFormatter.formatAmount(category.spentAmount, exchangeRates, "AUD")} / ${currencyFormatter.formatAmount(category.budgetAmount, exchangeRates, "AUD")}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
                 
                 Text(
-                    text = if (category.isOverBudget) "Over Budget!" else "Remaining: $${String.format("%.2f", category.remainingAmount)}",
+                    text = if (category.isOverBudget) "Over Budget!" else "Remaining: ${currencyFormatter.formatAmount(category.remainingAmount, exchangeRates, "AUD")}",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (category.isOverBudget) Color(0xFFF44336) else Color(0xFF4CAF50),
                     fontWeight = FontWeight.Bold
@@ -2271,5 +2407,232 @@ fun EditBudgetCategoryDialog(
             }
         }
     )
+}
+
+@Composable
+fun SafeGoalsScreen(
+    goalsViewModel: GoalsViewModel = viewModel(),
+    dashboardViewModel: com.cp3406.financetracker.ui.dashboard.DashboardViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val currencyFormatter = remember { com.cp3406.financetracker.utils.CurrencyFormatter(context) }
+    
+    val goals by goalsViewModel.goals.observeAsState(emptyList())
+    val totalSaved by goalsViewModel.totalSaved.observeAsState(0.0)
+    val averageProgress by goalsViewModel.averageProgress.observeAsState(0f)
+    val exchangeRates by dashboardViewModel.exchangeRates.observeAsState(emptyMap())
+    
+    var showAddGoalDialog by remember { mutableStateOf(false) }
+    var showEditGoalDialog by remember { mutableStateOf(false) }
+    var showAddProgressDialog by remember { mutableStateOf(false) }
+    var showRemoveProgressDialog by remember { mutableStateOf(false) }
+    var selectedGoal by remember { mutableStateOf<FinancialGoal?>(null) }
+    
+    val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Goals Summary Header
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Financial Goals",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        GoalSummaryItem(
+                            icon = Icons.Default.Star,
+                            value = "${goals.size}",
+                            label = "Total Goals"
+                        )
+                        
+                        GoalSummaryItem(
+                            icon = Icons.Default.CheckCircle,
+                            value = "${goals.count { it.isCompleted }}",
+                            label = "Completed"
+                        )
+                        
+                        GoalSummaryItem(
+                            icon = Icons.Default.AccountBox,
+                            value = currencyFormatter.formatAmount(totalSaved, exchangeRates, "AUD"),
+                            label = "Total Saved"
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Add Goal Button
+                    Button(
+                        onClick = { showAddGoalDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Create New Goal", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        
+        // Goals List
+        if (goals.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No Goals Yet",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Start your financial journey by creating your first goal. Whether it's an emergency fund, vacation, or major purchase, every goal gets you closer to financial freedom.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+        } else {
+            items(goals) { goal ->
+                GoalItem(
+                    goal = goal,
+                    onEdit = {
+                        selectedGoal = goal
+                        showEditGoalDialog = true
+                    },
+                    onAddProgress = {
+                        selectedGoal = goal
+                        showAddProgressDialog = true
+                    },
+                    onRemoveProgress = {
+                        selectedGoal = goal
+                        showRemoveProgressDialog = true
+                    },
+                    onDelete = {
+                        goalsViewModel.deleteGoal(goal.id.toLong())
+                    },
+                    exchangeRates = exchangeRates
+                )
+            }
+        }
+    }
+    
+    // Add Goal Dialog
+    if (showAddGoalDialog) {
+        AddGoalDialog(
+            onDismiss = { showAddGoalDialog = false },
+            onAdd = { title, targetAmount, targetDate, description ->
+                try {
+                    val date = dateFormatter.parse(targetDate) ?: java.util.Date()
+                    goalsViewModel.addGoal(
+                        title = title,
+                        description = description,
+                        targetAmount = targetAmount,
+                        targetDate = date,
+                        category = com.cp3406.financetracker.data.entity.GoalCategory.OTHER
+                    )
+                    showAddGoalDialog = false
+                } catch (e: Exception) {
+                    // Handle date parsing error
+                    showAddGoalDialog = false
+                }
+            }
+        )
+    }
+    
+    // Edit Goal Dialog
+    if (showEditGoalDialog && selectedGoal != null) {
+        EditGoalDialog(
+            goal = selectedGoal!!,
+            onDismiss = {
+                showEditGoalDialog = false
+                selectedGoal = null
+            },
+            onSave = { updatedGoal ->
+                goalsViewModel.updateGoal(updatedGoal)
+                showEditGoalDialog = false
+                selectedGoal = null
+            }
+        )
+    }
+    
+    // Add Progress Dialog
+    if (showAddProgressDialog && selectedGoal != null) {
+        AddProgressDialog(
+            goal = selectedGoal!!,
+            onDismiss = {
+                showAddProgressDialog = false
+                selectedGoal = null
+            },
+            onAdd = { amount ->
+                val newAmount = selectedGoal!!.currentAmount + amount
+                goalsViewModel.updateGoalProgress(selectedGoal!!.id.toLong(), newAmount)
+                showAddProgressDialog = false
+                selectedGoal = null
+            },
+            exchangeRates = exchangeRates
+        )
+    }
+    
+    // Remove Progress Dialog
+    if (showRemoveProgressDialog && selectedGoal != null) {
+        RemoveProgressDialog(
+            goal = selectedGoal!!,
+            onDismiss = {
+                showRemoveProgressDialog = false
+                selectedGoal = null
+            },
+            onRemove = { amount ->
+                val newAmount = maxOf(0.0, selectedGoal!!.currentAmount - amount)
+                goalsViewModel.updateGoalProgress(selectedGoal!!.id.toLong(), newAmount)
+                showRemoveProgressDialog = false
+                selectedGoal = null
+            },
+            exchangeRates = exchangeRates
+        )
+    }
 }
 

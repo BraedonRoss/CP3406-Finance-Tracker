@@ -15,7 +15,7 @@ import com.cp3406.financetracker.data.entity.TransactionEntity
 
 @Database(
     entities = [TransactionEntity::class, BudgetEntity::class, GoalEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

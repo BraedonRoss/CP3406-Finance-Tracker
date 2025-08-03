@@ -36,6 +36,7 @@ import com.cp3406.financetracker.ui.goals.GoalsViewModel
 import com.cp3406.financetracker.ui.profile.ProfileViewModel
 import com.cp3406.financetracker.ui.theme.FinanceTrackerTheme
 import com.cp3406.financetracker.ui.transactions.Transaction
+import com.cp3406.financetracker.ui.transactions.TransactionType
 import com.cp3406.financetracker.ui.transactions.TransactionsViewModel
 import com.google.firebase.auth.FirebaseAuth
 
@@ -627,3 +628,49 @@ val bottomNavItems = listOf(
     BottomNavItem("goals", "Goals", Icons.Default.Star),
     BottomNavItem("profile", "Profile", Icons.Default.Person)
 )
+
+@Composable
+fun TransactionItem(transaction: Transaction) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = transaction.description,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = transaction.category,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(transaction.date),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+            
+            Text(
+                text = if (transaction.type == TransactionType.INCOME) 
+                    "+A$${String.format("%.2f", transaction.amount)}" 
+                else 
+                    "-A$${String.format("%.2f", transaction.amount)}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (transaction.type == TransactionType.INCOME) 
+                    Color(0xFF4CAF50) 
+                else 
+                    Color(0xFFF44336)
+            )
+        }
+    }
+}

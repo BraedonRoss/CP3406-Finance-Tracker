@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class BudgetEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val userId: String,
     val category: String,
     val budgetAmount: Double,
     val spentAmount: Double = 0.0,

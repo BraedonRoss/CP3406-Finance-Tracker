@@ -9,6 +9,7 @@ import com.cp3406.financetracker.data.database.FinanceDatabase
 import com.cp3406.financetracker.data.entity.TransactionEntity
 import com.cp3406.financetracker.data.entity.TransactionType
 import com.cp3406.financetracker.data.repository.TransactionRepository
+import com.cp3406.financetracker.utils.UserUtils
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -22,7 +23,8 @@ class TransactionsViewModel(application: Application) : AndroidViewModel(applica
         val database = FinanceDatabase.getDatabase(application)
         repository = TransactionRepository(database.transactionDao())
         
-        val entityTransactions = repository.getAllTransactions()
+        val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+        val entityTransactions = repository.getAllTransactions(currentUserId)
         _transactions.addSource(entityTransactions) { entities ->
             _transactions.value = entities.map { it.toTransaction() }
         }
@@ -37,7 +39,9 @@ class TransactionsViewModel(application: Application) : AndroidViewModel(applica
         notes: String? = null
     ) {
         viewModelScope.launch {
+            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
             val transaction = TransactionEntity(
+                userId = currentUserId,
                 description = description,
                 amount = amount,
                 category = category,
@@ -51,8 +55,13 @@ class TransactionsViewModel(application: Application) : AndroidViewModel(applica
 
     fun deleteTransaction(transactionId: Long) {
         viewModelScope.launch {
-            repository.deleteTransactionById(transactionId)
+            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            repository.deleteTransactionById(transactionId, currentUserId)
         }
+    }
+    
+    fun deleteTransaction(transactionId: String) {
+        deleteTransaction(transactionId.toLong())
     }
 
     private fun TransactionEntity.toTransaction(): Transaction {

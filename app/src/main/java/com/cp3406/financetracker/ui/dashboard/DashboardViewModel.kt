@@ -11,6 +11,7 @@ import com.cp3406.financetracker.data.repository.BudgetRepository
 import com.cp3406.financetracker.data.repository.ExchangeRateRepository
 import com.cp3406.financetracker.data.repository.GoalRepository
 import com.cp3406.financetracker.data.repository.TransactionRepository
+import com.cp3406.financetracker.utils.UserUtils
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.*
@@ -22,7 +23,27 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private lateinit var budgetRepository: BudgetRepository
     private lateinit var goalRepository: GoalRepository
     private lateinit var exchangeRateRepository: ExchangeRateRepository
-    private val currencyFormatter = NumberFormat.getCurrencyInstance(Locale.US)
+    private fun getCurrencyFormatter(): NumberFormat {
+        val application = getApplication<Application>()
+        val currencyPrefs = application.getSharedPreferences("currency_prefs", android.content.Context.MODE_PRIVATE)
+        val selectedCurrency = currencyPrefs.getString("selected_currency", "AUD") ?: "AUD"
+        
+        val locale = when (selectedCurrency) {
+            "USD" -> Locale("en", "US")
+            "EUR" -> Locale("en", "EU")
+            "GBP" -> Locale("en", "GB")
+            "JPY" -> Locale("ja", "JP")
+            "CAD" -> Locale("en", "CA")
+            "AUD" -> Locale("en", "AU")
+            "CHF" -> Locale("de", "CH")
+            "CNY" -> Locale("zh", "CN")
+            "INR" -> Locale("en", "IN")
+            "BRL" -> Locale("pt", "BR")
+            else -> Locale("en", "AU")
+        }
+        
+        return NumberFormat.getCurrencyInstance(locale)
+    }
 
     private val _welcomeMessage = MediatorLiveData<String>()
     val welcomeMessage: LiveData<String> = _welcomeMessage
@@ -48,6 +69,13 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _recentTransactions = MediatorLiveData<List<com.cp3406.financetracker.ui.transactions.Transaction>>()
     val recentTransactions: LiveData<List<com.cp3406.financetracker.ui.transactions.Transaction>> = _recentTransactions
     
+    // Exchange Rate functionality for international users
+    private val _exchangeRates = MediatorLiveData<Map<String, Double>>()
+    val exchangeRates: LiveData<Map<String, Double>> = _exchangeRates
+    
+    private val _exchangeRateStatus = MediatorLiveData<String>()
+    val exchangeRateStatus: LiveData<String> = _exchangeRateStatus
+    
     init {
         try {
             val database = FinanceDatabase.getDatabase(application)
@@ -67,14 +95,19 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
     
     private fun setupDefaultValues() {
-        _currentBalance.value = "$0.00"
-        _monthlyIncome.value = "$0.00"
-        _monthlyExpenses.value = "$0.00"
-        _budgetProgress.value = 0
-        _activeGoalsCount.value = "0"
-        _totalSavingsProgress.value = "$0.00"
-        _recentTransactions.value = emptyList()
-        _exchangeRateStatus.value = "Exchange rates not available"
+        try {
+            _currentBalance.value = "$0.00"
+            _monthlyIncome.value = "$0.00"
+            _monthlyExpenses.value = "$0.00"
+            _budgetProgress.value = 0
+            _activeGoalsCount.value = "0"
+            _totalSavingsProgress.value = "$0.00"
+            _recentTransactions.value = emptyList()
+            _exchangeRateStatus.value = "Exchange rates not available"
+        } catch (e: Exception) {
+            // If setting default values fails, log the error but don't crash
+            android.util.Log.e("DashboardViewModel", "Failed to set default values", e)
+        }
     }
     
     private fun setupWelcomeMessage() {
@@ -89,7 +122,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
     
     private fun observeFinancialData() {
-        val allTransactions = transactionRepository.getAllTransactions()
+        val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+        val allTransactions = transactionRepository.getAllTransactions(currentUserId)
         
         // Calculate current balance from all transactions
         _currentBalance.addSource(allTransactions) { transactions ->
@@ -97,7 +131,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 val totalIncome = transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
                 val totalExpenses = transactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
                 val balance = totalIncome - totalExpenses
-                _currentBalance.postValue(currencyFormatter.format(balance))
+                _currentBalance.postValue(getCurrencyFormatter().format(balance))
             }
         }
         
@@ -114,7 +148,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     transactionCal.get(Calendar.YEAR) == currentYear
                 }.sumOf { it.amount }
                 
-                _monthlyIncome.postValue(currencyFormatter.format(monthlyIncomeAmount))
+                _monthlyIncome.postValue(getCurrencyFormatter().format(monthlyIncomeAmount))
             }
         }
         
@@ -130,20 +164,20 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     transactionCal.get(Calendar.YEAR) == currentYear
                 }.sumOf { it.amount }
                 
-                _monthlyExpenses.postValue(currencyFormatter.format(monthlyExpenseAmount))
+                _monthlyExpenses.postValue(getCurrencyFormatter().format(monthlyExpenseAmount))
             }
         }
         
         // Observe budget data
         val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-        val budgets = budgetRepository.getBudgetsForMonth(currentMonth, currentYear)
+        val budgets = budgetRepository.getBudgetsForMonth(currentUserId, currentMonth, currentYear)
         
         _budgetProgress.addSource(budgets) { budgetList ->
             viewModelScope.launch {
                 if (budgetList.isNotEmpty()) {
                     val totalBudget = budgetList.sumOf { it.budgetAmount }
-                    val totalSpent = budgetRepository.getTotalSpentForMonth(currentMonth, currentYear)
+                    val totalSpent = budgetRepository.getTotalSpentForMonth(currentUserId, currentMonth, currentYear)
                     
                     val progress = if (totalBudget > 0) {
                         ((totalSpent / totalBudget) * 100).toInt()
@@ -157,7 +191,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
         
         // Observe goals data
-        val allGoals = goalRepository.getAllGoals()
+        val allGoals = goalRepository.getAllGoals(currentUserId)
         _activeGoalsCount.addSource(allGoals) { goals ->
             val activeGoals = goals.filter { !it.isCompleted }
             _activeGoalsCount.postValue("${activeGoals.size} Active Goals")
@@ -165,7 +199,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         
         _totalSavingsProgress.addSource(allGoals) { goals ->
             val totalSaved = goals.sumOf { it.currentAmount }
-            _totalSavingsProgress.postValue(currencyFormatter.format(totalSaved))
+            _totalSavingsProgress.postValue(getCurrencyFormatter().format(totalSaved))
         }
         
         // Observe recent transactions (last 5)
@@ -190,20 +224,18 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
     
-    // Exchange Rate functionality for international users
-    private val _exchangeRates = MediatorLiveData<Map<String, Double>>()
-    val exchangeRates: LiveData<Map<String, Double>> = _exchangeRates
-    
-    private val _exchangeRateStatus = MediatorLiveData<String>()
-    val exchangeRateStatus: LiveData<String> = _exchangeRateStatus
-    
     private fun fetchLatestExchangeRates() {
         _exchangeRateStatus.value = "Fetching latest exchange rates..."
         
         viewModelScope.launch {
             try {
+                // Get selected currency from SharedPreferences
+                val application = getApplication<Application>()
+                val currencyPrefs = application.getSharedPreferences("currency_prefs", android.content.Context.MODE_PRIVATE)
+                val selectedCurrency = currencyPrefs.getString("selected_currency", "AUD") ?: "AUD"
+                
                 val result = exchangeRateRepository.getLatestExchangeRates(
-                    baseCurrency = "USD",
+                    baseCurrency = selectedCurrency,
                     targetCurrencies = ExchangeRateRepository.SUPPORTED_CURRENCIES
                 )
                 
@@ -225,6 +257,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
     
     fun refreshExchangeRates() {
+        fetchLatestExchangeRates()
+    }
+    
+    fun onCurrencyChanged() {
         fetchLatestExchangeRates()
     }
 }

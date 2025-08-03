@@ -10,6 +10,7 @@ import com.cp3406.financetracker.data.entity.BudgetEntity
 import com.cp3406.financetracker.data.entity.TransactionType
 import com.cp3406.financetracker.data.repository.BudgetRepository
 import com.cp3406.financetracker.data.repository.TransactionRepository
+import com.cp3406.financetracker.utils.UserUtils
 import kotlinx.coroutines.launch
 import java.util.*
 import java.util.Date
@@ -37,14 +38,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         
         val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        val currentUserId = UserUtils.getCurrentUserIdOrDefault()
         
-        val entityBudgets = budgetRepository.getBudgetsForMonth(currentMonth, currentYear)
+        val entityBudgets = budgetRepository.getBudgetsForMonth(currentUserId, currentMonth, currentYear)
         _budgetCategories.addSource(entityBudgets) { entities ->
             updateBudgetData(entities)
         }
         
         // Also observe transactions to sync budget spent amounts with actual transaction expenses
-        val allTransactions = transactionRepository.getAllTransactions()
+        val allTransactions = transactionRepository.getAllTransactions(currentUserId)
         _budgetCategories.addSource(allTransactions) { _ ->
             if (syncWithTransactions) {
                 entityBudgets.value?.let { entities ->
@@ -59,8 +61,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
             val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
             
             val budget = BudgetEntity(
+                userId = currentUserId,
                 category = category,
                 budgetAmount = budgetAmount,
                 month = currentMonth,
@@ -76,9 +80,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
             val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
             
             val categoryName = _budgetCategories.value?.find { it.id == categoryId }?.name ?: return@launch
-            budgetRepository.updateBudgetAmount(categoryName, currentMonth, currentYear, newAmount)
+            budgetRepository.updateBudgetAmount(currentUserId, categoryName, currentMonth, currentYear, newAmount)
         }
     }
 
@@ -86,9 +91,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
             val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
             
             val categoryName = _budgetCategories.value?.find { it.id == categoryId }?.name ?: return@launch
-            budgetRepository.updateSpentAmount(categoryName, currentMonth, currentYear, newSpentAmount)
+            budgetRepository.updateSpentAmount(currentUserId, categoryName, currentMonth, currentYear, newSpentAmount)
         }
     }
 
@@ -96,13 +102,27 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
             val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
             
             val categoryName = _budgetCategories.value?.find { it.id == categoryId }?.name ?: return@launch
-            val budget = budgetRepository.getBudgetByCategory(categoryName, currentMonth, currentYear)
+            val budget = budgetRepository.getBudgetByCategory(currentUserId, categoryName, currentMonth, currentYear)
             
             budget?.let {
                 budgetRepository.deleteBudget(it)
             }
+        }
+    }
+    
+    fun addBudgetCategory(name: String, amount: Double) {
+        addBudget(name, amount, "💰", "#4CAF50")
+    }
+    
+    fun addExpenseToCategory(categoryId: String, amount: Double, description: String) {
+        viewModelScope.launch {
+            val category = _budgetCategories.value?.find { it.id == categoryId } ?: return@launch
+            
+            // Add as a transaction to keep everything synced
+            addSpendingTransaction(category.name, amount, description)
         }
     }
     
@@ -113,8 +133,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             _budgetCategories.value?.let { _ ->
                 val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
                 val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+                val currentUserId = UserUtils.getCurrentUserIdOrDefault()
                 viewModelScope.launch {
-                    val entities = budgetRepository.getBudgetsForMonth(currentMonth, currentYear).value
+                    val entities = budgetRepository.getBudgetsForMonth(currentUserId, currentMonth, currentYear).value
                     entities?.let { syncBudgetWithTransactions(it) }
                 }
             }
@@ -123,7 +144,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     
     fun addSpendingTransaction(category: String, amount: Double, description: String) {
         viewModelScope.launch {
+            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
             val transaction = com.cp3406.financetracker.data.entity.TransactionEntity(
+                userId = currentUserId,
                 description = description,
                 amount = amount,
                 category = category,
@@ -146,6 +169,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
             val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
             
             // Force sync by updating spent amounts for all categories
             _budgetCategories.value?.forEach { budgetCategory ->
@@ -166,9 +190,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 }.time
                 
                 val actualSpent = transactionRepository.getSpentAmountByCategory(
-                    budgetCategory.name, startOfMonth, endOfMonth
+                    currentUserId, budgetCategory.name, startOfMonth, endOfMonth
                 )
                 budgetRepository.updateSpentAmount(
+                    currentUserId,
                     budgetCategory.name, 
                     currentMonth, 
                     currentYear, 
@@ -198,6 +223,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val currentMonth = Calendar.getInstance().get(Calendar.MONTH)
             val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
             
             val startOfMonth = Calendar.getInstance().apply {
                 set(Calendar.DAY_OF_MONTH, 1)
@@ -217,9 +243,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             
             entities.forEach { entity ->
                 val actualSpent = transactionRepository.getSpentAmountByCategory(
-                    entity.category, startOfMonth, endOfMonth
+                    currentUserId, entity.category, startOfMonth, endOfMonth
                 )
                 budgetRepository.updateSpentAmount(
+                    currentUserId,
                     entity.category, 
                     currentMonth + 1, // Repository expects 1-based month
                     currentYear, 

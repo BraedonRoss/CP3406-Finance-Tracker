@@ -8,24 +8,24 @@ import java.util.Date
 
 class TransactionRepository(private val transactionDao: TransactionDao) {
     
-    fun getAllTransactions(): LiveData<List<TransactionEntity>> {
-        return transactionDao.getAllTransactions()
+    fun getAllTransactions(userId: String): LiveData<List<TransactionEntity>> {
+        return transactionDao.getAllTransactions(userId)
     }
     
-    fun getTransactionsByDateRange(startDate: Date, endDate: Date): LiveData<List<TransactionEntity>> {
-        return transactionDao.getTransactionsByDateRange(startDate, endDate)
+    fun getTransactionsByDateRange(userId: String, startDate: Date, endDate: Date): LiveData<List<TransactionEntity>> {
+        return transactionDao.getTransactionsByDateRange(userId, startDate, endDate)
     }
     
-    fun getTransactionsByCategory(category: String): LiveData<List<TransactionEntity>> {
-        return transactionDao.getTransactionsByCategory(category)
+    fun getTransactionsByCategory(userId: String, category: String): LiveData<List<TransactionEntity>> {
+        return transactionDao.getTransactionsByCategory(userId, category)
     }
     
-    suspend fun getTotalAmountByTypeAndDateRange(type: TransactionType, startDate: Date, endDate: Date): Double {
-        return transactionDao.getTotalAmountByTypeAndDateRange(type, startDate, endDate) ?: 0.0
+    suspend fun getTotalAmountByTypeAndDateRange(userId: String, type: TransactionType, startDate: Date, endDate: Date): Double {
+        return transactionDao.getTotalAmountByTypeAndDateRange(userId, type, startDate, endDate) ?: 0.0
     }
     
-    suspend fun getSpentAmountByCategory(category: String, startDate: Date, endDate: Date): Double {
-        return transactionDao.getSpentAmountByCategory(category, startDate, endDate) ?: 0.0
+    suspend fun getSpentAmountByCategory(userId: String, category: String, startDate: Date, endDate: Date): Double {
+        return transactionDao.getSpentAmountByCategory(userId, category, startDate, endDate) ?: 0.0
     }
     
     suspend fun insertTransaction(transaction: TransactionEntity): Long {
@@ -40,8 +40,12 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         transactionDao.deleteTransaction(transaction)
     }
     
-    suspend fun deleteTransactionById(id: Long) {
-        transactionDao.deleteTransactionById(id)
+    suspend fun deleteTransactionById(id: Long, userId: String) {
+        transactionDao.deleteTransactionById(id, userId)
+    }
+    
+    suspend fun deleteAllUserTransactions(userId: String) {
+        transactionDao.deleteAllUserTransactions(userId)
     }
     
     suspend fun deleteAllTransactions() {

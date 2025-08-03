@@ -8,6 +8,7 @@ import java.util.Date
 data class GoalEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val userId: String,
     val title: String,
     val description: String,
     val targetAmount: Double,

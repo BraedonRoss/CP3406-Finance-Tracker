@@ -19,14 +19,9 @@
         <!-- Safe Jetpack Compose Finance Tracker App -->
         <activity
             android:name=".SafeComposeMainActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="@string/app_name"
-            android:theme="@style/Theme.FinanceTracker">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.FinanceTracker" />
         
         <!-- Minimal Safe Activity for Testing -->
         <activity
@@ -43,12 +38,17 @@
             android:label="@string/app_name"
             android:theme="@style/Theme.FinanceTracker" />
         
-        <!-- Full Featured Jetpack Compose Main Activity (backup) -->
+        <!-- Full Featured Jetpack Compose Main Activity -->
         <activity
             android:name=".FullComposeMainActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.FinanceTracker" />
+            android:theme="@style/Theme.FinanceTracker">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         
         <!-- Simple version for testing -->
         <activity

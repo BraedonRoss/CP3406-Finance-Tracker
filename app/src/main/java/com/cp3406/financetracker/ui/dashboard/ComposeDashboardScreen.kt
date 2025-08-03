@@ -37,7 +37,6 @@ fun ComposeDashboardScreen(
     val activeGoalsCount by viewModel.activeGoalsCount.observeAsState("0")
     val totalSavingsProgress by viewModel.totalSavingsProgress.observeAsState("$0.00")
     val recentTransactions by viewModel.recentTransactions.observeAsState(emptyList())
-    val exchangeRateStatus by viewModel.exchangeRateStatus.observeAsState("")
 
     LazyColumn(
         modifier = Modifier
@@ -53,24 +52,6 @@ fun ComposeDashboardScreen(
             )
         }
 
-        // Exchange Rate Status
-        if (exchangeRateStatus.isNotEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
-                ) {
-                    Text(
-                        text = exchangeRateStatus,
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-            }
-        }
 
         // Quick Stats Cards
         item {
@@ -89,6 +70,11 @@ fun ComposeDashboardScreen(
             )
         }
 
+        // Budget Overview Section
+        item {
+            BudgetOverviewSection()
+        }
+
         // Recent Transactions
         item {
             Row(
@@ -102,15 +88,6 @@ fun ComposeDashboardScreen(
                     fontWeight = FontWeight.Bold
                 )
                 
-                // Refresh button for exchange rates
-                IconButton(
-                    onClick = { viewModel.refreshExchangeRates() }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Refresh Exchange Rates"
-                    )
-                }
             }
         }
 
@@ -387,6 +364,153 @@ private fun EmptyTransactionsCard() {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 textAlign = TextAlign.Center
             )
+        }
+    }
+}
+
+@Composable
+private fun BudgetOverviewSection() {
+    val budgetViewModel: com.cp3406.financetracker.ui.budget.BudgetViewModel = viewModel()
+    val budgetCategories by budgetViewModel.budgetCategories.observeAsState(emptyList())
+    val totalBudget by budgetViewModel.totalBudget.observeAsState(0.0)
+    val totalSpent by budgetViewModel.totalSpent.observeAsState(0.0)
+    
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            Text(
+                text = "Budget Overview",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            if (budgetCategories.isNotEmpty()) {
+                val spentPercentage = if (totalBudget > 0) (totalSpent / totalBudget * 100).toFloat() else 0f
+                val remainingBudget = totalBudget - totalSpent
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "Total Budget",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "$${String.format("%.0f", totalBudget)}",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    Column {
+                        Text(
+                            text = "Spent",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "$${String.format("%.0f", totalSpent)}",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                spentPercentage >= 100 -> Color(0xFFF44336)
+                                spentPercentage >= 80 -> Color(0xFFFF9800)
+                                else -> Color(0xFF4CAF50)
+                            }
+                        )
+                    }
+                    
+                    Column {
+                        Text(
+                            text = "Remaining",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "$${String.format("%.0f", remainingBudget)}",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (remainingBudget >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                LinearProgressIndicator(
+                    progress = { minOf(spentPercentage / 100f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = when {
+                        spentPercentage >= 100 -> Color(0xFFF44336)
+                        spentPercentage >= 80 -> Color(0xFFFF9800)
+                        else -> Color(0xFF4CAF50)
+                    }
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "${String.format("%.1f", spentPercentage)}% of budget used this month",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                
+                // Show top spending categories
+                if (budgetCategories.size > 1) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Top Categories",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    budgetCategories.sortedByDescending { it.spentAmount }.take(3).forEach { category ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = category.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "$${String.format("%.0f", category.spentAmount)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
+            } else {
+                Text(
+                    text = "No budget categories set up yet",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "Create budget categories to track your monthly spending",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
         }
     }
 }

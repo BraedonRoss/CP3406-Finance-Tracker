@@ -14,6 +14,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.cp3406.financetracker.ui.goals.FinancialGoal
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 // Goals Screen Components
 
@@ -54,8 +58,11 @@ fun GoalItem(
     onEdit: () -> Unit,
     onAddProgress: () -> Unit,
     onRemoveProgress: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    exchangeRates: Map<String, Double> = emptyMap()
 ) {
+    val context = LocalContext.current
+    val currencyFormatter = remember { com.cp3406.financetracker.utils.CurrencyFormatter(context) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -138,12 +145,12 @@ fun GoalItem(
             ) {
                 Column {
                     Text(
-                        text = "$${String.format("%.2f", goal.currentAmount)} of $${String.format("%.2f", goal.targetAmount)}",
+                        text = "${currencyFormatter.formatAmount(goal.currentAmount, exchangeRates, "AUD")} of ${currencyFormatter.formatAmount(goal.targetAmount, exchangeRates, "AUD")}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (goal.isCompleted) "Goal Completed! 🎉" else "Remaining: $${String.format("%.2f", goal.remainingAmount)}",
+                        text = if (goal.isCompleted) "Goal Completed! 🎉" else "Remaining: ${currencyFormatter.formatAmount(goal.remainingAmount, exchangeRates, "AUD")}",
                         style = MaterialTheme.typography.bodySmall,
                         color = if (goal.isCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )
@@ -322,9 +329,10 @@ fun EditGoalDialog(
     onDismiss: () -> Unit,
     onSave: (FinancialGoal) -> Unit
 ) {
+    val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var title by remember { mutableStateOf(goal.title) }
     var targetAmount by remember { mutableStateOf(goal.targetAmount.toString()) }
-    var targetDate by remember { mutableStateOf(goal.targetDate) }
+    var targetDate by remember { mutableStateOf(dateFormatter.format(goal.targetDate)) }
     var description by remember { mutableStateOf(goal.description) }
     
     AlertDialog(
@@ -371,13 +379,19 @@ fun EditGoalDialog(
                 onClick = {
                     val amount = targetAmount.toDoubleOrNull()
                     if (title.isNotBlank() && amount != null && amount > 0 && targetDate.isNotBlank()) {
-                        val updatedGoal = goal.copy(
-                            title = title,
-                            targetAmount = amount,
-                            targetDate = targetDate,
-                            description = description
-                        )
-                        onSave(updatedGoal)
+                        try {
+                            val date = dateFormatter.parse(targetDate) ?: goal.targetDate
+                            val updatedGoal = goal.copy(
+                                title = title,
+                                targetAmount = amount,
+                                targetDate = date,
+                                description = description
+                            )
+                            onSave(updatedGoal)
+                        } catch (e: Exception) {
+                            // If date parsing fails, just close dialog
+                            onDismiss()
+                        }
                     }
                 },
                 enabled = title.isNotBlank() && targetAmount.toDoubleOrNull() != null && targetDate.isNotBlank()
@@ -397,8 +411,11 @@ fun EditGoalDialog(
 fun AddProgressDialog(
     goal: FinancialGoal,
     onDismiss: () -> Unit,
-    onAdd: (Double) -> Unit
+    onAdd: (Double) -> Unit,
+    exchangeRates: Map<String, Double> = emptyMap()
 ) {
+    val context = LocalContext.current
+    val currencyFormatter = remember { com.cp3406.financetracker.utils.CurrencyFormatter(context) }
     var amount by remember { mutableStateOf("") }
     
     AlertDialog(
@@ -409,7 +426,7 @@ fun AddProgressDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Current Progress: $${String.format("%.2f", goal.currentAmount)} of $${String.format("%.2f", goal.targetAmount)}",
+                    text = "Current Progress: ${currencyFormatter.formatAmount(goal.currentAmount, exchangeRates, "AUD")} of ${currencyFormatter.formatAmount(goal.targetAmount, exchangeRates, "AUD")}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
@@ -427,7 +444,7 @@ fun AddProgressDialog(
                 val newTotal = (goal.currentAmount + (amount.toDoubleOrNull() ?: 0.0))
                 if (amount.toDoubleOrNull() != null) {
                     Text(
-                        text = "New Total: $${String.format("%.2f", newTotal)}",
+                        text = "New Total: ${currencyFormatter.formatAmount(newTotal, exchangeRates, "AUD")}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold
@@ -469,8 +486,11 @@ fun AddProgressDialog(
 fun RemoveProgressDialog(
     goal: FinancialGoal,
     onDismiss: () -> Unit,
-    onRemove: (Double) -> Unit
+    onRemove: (Double) -> Unit,
+    exchangeRates: Map<String, Double> = emptyMap()
 ) {
+    val context = LocalContext.current
+    val currencyFormatter = remember { com.cp3406.financetracker.utils.CurrencyFormatter(context) }
     var amount by remember { mutableStateOf("") }
     
     AlertDialog(
@@ -481,7 +501,7 @@ fun RemoveProgressDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Current Amount: $${String.format("%.2f", goal.currentAmount)}",
+                    text = "Current Amount: ${currencyFormatter.formatAmount(goal.currentAmount, exchangeRates, "AUD")}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
@@ -501,7 +521,7 @@ fun RemoveProgressDialog(
                 
                 if (amount.toDoubleOrNull() != null) {
                     Text(
-                        text = "New Total: $${String.format("%.2f", newTotal)}",
+                        text = "New Total: ${currencyFormatter.formatAmount(newTotal, exchangeRates, "AUD")}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold

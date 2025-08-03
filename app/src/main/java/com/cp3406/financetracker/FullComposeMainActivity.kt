@@ -158,27 +158,17 @@ fun FullMainAppScreen(
                 ComposeDashboardScreen()
             }
             composable("budget") {
-                FullPlaceholderScreen(
-                    title = "Budget Management", 
-                    description = "Track your spending against category budgets\n\n• Create custom budget categories\n• Monitor spending progress\n• Set alerts for overspending\n• View budget vs actual reports"
-                )
+                com.cp3406.financetracker.ui.budget.ComposeBudgetScreen()
             }
             composable("transactions") {
-                FullPlaceholderScreen(
-                    title = "Transaction History", 
-                    description = "Comprehensive transaction management\n\n• Add income and expense transactions\n• Categorize transactions\n• Search and filter history\n• Export transaction data"
-                )
+                com.cp3406.financetracker.ui.transactions.ComposeTransactionsScreen()
             }
             composable("goals") {
-                FullPlaceholderScreen(
-                    title = "Financial Goals", 
-                    description = "Set and track your financial objectives\n\n• Create savings goals\n• Track progress over time\n• Set target dates\n• Celebrate achievements"
-                )
+                com.cp3406.financetracker.ui.goals.ComposeGoalsScreen()
             }
             composable("profile") {
-                FullPlaceholderScreen(
-                    title = "User Profile", 
-                    description = "Manage your account and preferences\n\n• Update personal information\n• Configure notifications\n• Set currency preferences\n• Manage security settings"
+                com.cp3406.financetracker.ui.profile.ComposeProfileScreen(
+                    onSignOut = onLogout
                 )
             }
         }
@@ -251,7 +241,7 @@ data class FullBottomNavItem(
 val fullBottomNavItems = listOf(
     FullBottomNavItem("dashboard", "Dashboard", Icons.Default.Home),
     FullBottomNavItem("budget", "Budget", Icons.Default.AccountBox),
-    FullBottomNavItem("transactions", "Transactions", Icons.Default.Menu),
+    FullBottomNavItem("transactions", "History", Icons.Default.Menu),
     FullBottomNavItem("goals", "Goals", Icons.Default.Star),
     FullBottomNavItem("profile", "Profile", Icons.Default.Person)
 )
