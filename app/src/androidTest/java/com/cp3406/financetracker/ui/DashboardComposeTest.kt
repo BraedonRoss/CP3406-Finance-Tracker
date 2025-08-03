@@ -3,7 +3,7 @@ package com.cp3406.financetracker.ui
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.cp3406.financetracker.ui.dashboard.DashboardScreen
+import com.cp3406.financetracker.ui.dashboard.ComposeDashboardScreen
 import com.cp3406.financetracker.ui.theme.FinanceTrackerTheme
 import org.junit.Rule
 import org.junit.Test
@@ -19,7 +19,7 @@ class DashboardComposeTest {
     fun dashboardScreen_displaysWelcomeSection() {
         composeTestRule.setContent {
             FinanceTrackerTheme {
-                DashboardScreen()
+                ComposeDashboardScreen()
             }
         }
 
@@ -31,7 +31,7 @@ class DashboardComposeTest {
     fun dashboardScreen_displaysQuickStats() {
         composeTestRule.setContent {
             FinanceTrackerTheme {
-                DashboardScreen()
+                ComposeDashboardScreen()
             }
         }
 
@@ -45,7 +45,7 @@ class DashboardComposeTest {
     fun dashboardScreen_displaysSavingsProgress() {
         composeTestRule.setContent {
             FinanceTrackerTheme {
-                DashboardScreen()
+                ComposeDashboardScreen()
             }
         }
 
@@ -59,7 +59,7 @@ class DashboardComposeTest {
     fun dashboardScreen_displaysRecentTransactionsSection() {
         composeTestRule.setContent {
             FinanceTrackerTheme {
-                DashboardScreen()
+                ComposeDashboardScreen()
             }
         }
 
@@ -71,7 +71,7 @@ class DashboardComposeTest {
     fun dashboardScreen_showsEmptyStateWhenNoTransactions() {
         composeTestRule.setContent {
             FinanceTrackerTheme {
-                DashboardScreen()
+                ComposeDashboardScreen()
             }
         }
 
@@ -85,7 +85,7 @@ class DashboardComposeTest {
     fun dashboardScreen_statsCardsHaveCorrectContent() {
         composeTestRule.setContent {
             FinanceTrackerTheme {
-                DashboardScreen()
+                ComposeDashboardScreen()
             }
         }
 
@@ -101,7 +101,7 @@ class DashboardComposeTest {
     fun dashboardScreen_hasScrollableContent() {
         composeTestRule.setContent {
             FinanceTrackerTheme {
-                DashboardScreen()
+                ComposeDashboardScreen()
             }
         }
 

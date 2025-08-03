@@ -1,6 +1,7 @@
 package com.cp3406.financetracker.ui.auth
 
 import android.util.Log
+import android.util.Patterns
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -24,6 +25,16 @@ class AuthViewModel : ViewModel() {
     }
 
     fun signInWithEmail(email: String, password: String) {
+        if (!isValidEmail(email)) {
+            _authState.value = AuthState.Error("Please enter a valid email address")
+            return
+        }
+        
+        if (!isValidPassword(password)) {
+            _authState.value = AuthState.Error("Password must be at least 6 characters")
+            return
+        }
+        
         _authState.value = AuthState.Loading
 
         auth.signInWithEmailAndPassword(email, password)
@@ -46,6 +57,21 @@ class AuthViewModel : ViewModel() {
     }
 
     fun createUserWithEmail(email: String, password: String, firstName: String, lastName: String) {
+        if (!isValidEmail(email)) {
+            _authState.value = AuthState.Error("Please enter a valid email address")
+            return
+        }
+        
+        if (!isValidPassword(password)) {
+            _authState.value = AuthState.Error("Password must be at least 6 characters")
+            return
+        }
+        
+        if (firstName.isBlank() || lastName.isBlank()) {
+            _authState.value = AuthState.Error("Please enter your first and last name")
+            return
+        }
+        
         _authState.value = AuthState.Loading
 
         auth.createUserWithEmailAndPassword(email, password)
@@ -113,6 +139,14 @@ class AuthViewModel : ViewModel() {
 
     fun resetAuthState() {
         _authState.value = AuthState.Idle
+    }
+
+    private fun isValidEmail(email: String): Boolean {
+        return email.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    }
+    
+    private fun isValidPassword(password: String): Boolean {
+        return password.length >= 6
     }
 
     private fun getErrorMessage(firebaseError: String): String {

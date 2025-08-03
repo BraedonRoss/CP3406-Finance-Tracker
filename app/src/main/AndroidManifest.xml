@@ -16,29 +16,7 @@
         android:theme="@style/Theme.FinanceTracker"
         tools:targetApi="31">
         
-        <!-- Safe Jetpack Compose Finance Tracker App -->
-        <activity
-            android:name=".SafeComposeMainActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.FinanceTracker" />
-        
-        <!-- Minimal Safe Activity for Testing -->
-        <activity
-            android:name=".MinimalSafeActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.FinanceTracker" />
-        
-        
-        <!-- Original XML-based MainActivity (backup) -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.FinanceTracker" />
-        
-        <!-- Full Featured Jetpack Compose Main Activity -->
+        <!-- Main Application Activity -->
         <activity
             android:name=".FullComposeMainActivity"
             android:exported="true"
@@ -49,37 +27,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
-        <!-- Simple version for testing -->
-        <activity
-            android:name=".SimpleComposeActivity"
-            android:exported="false"
-            android:theme="@style/Theme.FinanceTracker" />
-        
-        <!-- Authentication Activities -->
-        <activity
-            android:name=".ui.auth.ComposeAuthActivity"
-            android:exported="false"
-            android:theme="@style/Theme.FinanceTracker" />
-            
-        <activity
-            android:name=".ui.auth.LoginActivity"
-            android:exported="false" />
-            
-        <activity
-            android:name=".ui.auth.RegisterActivity"
-            android:exported="false" />
-            
-        <!-- Test Activities -->
-        <activity
-            android:name=".TestMainActivity"
-            android:exported="false"
-            android:theme="@style/Theme.FinanceTracker" />
-            
-        <activity
-            android:name=".WorkingComposeMainActivity"
-            android:exported="false"
-            android:theme="@style/Theme.FinanceTracker" />
         
     </application>
 
