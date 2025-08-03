@@ -46,12 +46,31 @@ import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.isSystemInDarkTheme
+import java.util.UUID
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 data class SafeBottomNavItem(
     val route: String,
     val label: String,
     val icon: ImageVector
 )
+
+data class FinancialGoal(
+    val id: String = "",
+    val title: String,
+    val targetAmount: Double,
+    val currentAmount: Double = 0.0,
+    val targetDate: String,
+    val description: String = "",
+    val isCompleted: Boolean = false
+) {
+    val progressPercentage: Int
+        get() = if (targetAmount > 0) ((currentAmount / targetAmount) * 100).toInt() else 0
+    
+    val remainingAmount: Double
+        get() = targetAmount - currentAmount
+}
 
 val safeBottomNavItems = listOf(
     SafeBottomNavItem("dashboard", "Dashboard", Icons.Default.Home),
@@ -809,20 +828,79 @@ fun TransactionItem(transaction: com.cp3406.financetracker.ui.transactions.Trans
 
 @Composable
 fun SafeGoalsScreen() {
+    val context = LocalContext.current
+    val gson = remember { Gson() }
+    val transactionsViewModel: TransactionsViewModel = viewModel()
+    
+    var goals by remember { mutableStateOf<List<FinancialGoal>>(emptyList()) }
+    var showAddGoalDialog by remember { mutableStateOf(false) }
+    var showEditGoalDialog by remember { mutableStateOf(false) }
+    var selectedGoal by remember { mutableStateOf<FinancialGoal?>(null) }
+    var showAddProgressDialog by remember { mutableStateOf(false) }
+    var showRemoveProgressDialog by remember { mutableStateOf(false) }
+    
+    // Load goals on first composition
+    LaunchedEffect(Unit) {
+        val sharedPrefs = context.getSharedPreferences("goals_prefs", Context.MODE_PRIVATE)
+        val goalsJson = sharedPrefs.getString("saved_goals", null)
+        if (goalsJson != null) {
+            try {
+                val type = object : TypeToken<List<FinancialGoal>>() {}.type
+                val savedGoals = gson.fromJson<List<FinancialGoal>>(goalsJson, type) ?: emptyList()
+                goals = savedGoals
+            } catch (e: Exception) {
+                goals = emptyList()
+            }
+        }
+    }
+    
+    // Save goals whenever they change
+    val saveGoals = { goalsList: List<FinancialGoal> ->
+        val sharedPrefs = context.getSharedPreferences("goals_prefs", Context.MODE_PRIVATE)
+        val goalsJson = gson.toJson(goalsList)
+        sharedPrefs.edit().putString("saved_goals", goalsJson).apply()
+    }
+    
+    // Calculate summary statistics
+    val activeGoals = goals.filter { !it.isCompleted }
+    val totalSaved = goals.sumOf { it.currentAmount }
+    val totalTarget = goals.sumOf { it.targetAmount }
+    val overallProgress = if (totalTarget > 0) ((totalSaved / totalTarget) * 100).toInt() else 0
+    
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Header
         item {
-            Text(
-                text = "Financial Goals",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Financial Goals",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                FloatingActionButton(
+                    onClick = { showAddGoalDialog = true },
+                    modifier = Modifier.size(56.dp),
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Goal",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
         }
         
+        // Summary Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -831,53 +909,237 @@ fun SafeGoalsScreen() {
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(20.dp)
                 ) {
                     Text(
                         text = "Goal Progress Summary",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        GoalSummaryItem(
+                            icon = Icons.Default.Star,
+                            value = "${activeGoals.size}",
+                            label = "Active Goals"
+                        )
+                        
+                        GoalSummaryItem(
+                            icon = Icons.Default.CheckCircle,
+                            value = "${goals.size - activeGoals.size}",
+                            label = "Completed"
+                        )
+                        
+                        GoalSummaryItem(
+                            icon = Icons.Default.KeyboardArrowUp,
+                            value = "$overallProgress%",
+                            label = "Overall Progress"
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
                     Text(
-                        text = "Active Goals: 0 | Total Progress: $0 saved",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "Total Saved: $${String.format("%.2f", totalSaved)} of $${String.format("%.2f", totalTarget)}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
         }
         
-        item {
-            Text(
-                text = "Your Goals",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
+        // Goals List Header
+        if (goals.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Your Goals",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
         
-        // No goals yet
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+        // Goals List
+        if (goals.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "No goals set yet",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = "Create financial goals to track your progress",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        textAlign = TextAlign.Center
-                    )
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "No goals",
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No goals set yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Create your first financial goal to start tracking your progress toward financial freedom!",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { showAddGoalDialog = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Create Goal")
+                        }
+                    }
                 }
             }
+        } else {
+            items(goals.size) { index ->
+                val goal = goals[index]
+                GoalItem(
+                    goal = goal,
+                    onEdit = {
+                        selectedGoal = goal
+                        showEditGoalDialog = true
+                    },
+                    onAddProgress = {
+                        selectedGoal = goal
+                        showAddProgressDialog = true
+                    },
+                    onRemoveProgress = {
+                        selectedGoal = goal
+                        showRemoveProgressDialog = true
+                    },
+                    onDelete = {
+                        val updatedGoals = goals.filter { it.id != goal.id }
+                        goals = updatedGoals
+                        saveGoals(updatedGoals)
+                    }
+                )
+            }
         }
+    }
+    
+    // Add Goal Dialog
+    if (showAddGoalDialog) {
+        AddGoalDialog(
+            onDismiss = { showAddGoalDialog = false },
+            onAdd = { title, target, date, description ->
+                val newGoal = FinancialGoal(
+                    id = UUID.randomUUID().toString(),
+                    title = title,
+                    targetAmount = target,
+                    targetDate = date,
+                    description = description
+                )
+                val updatedGoals = goals + newGoal
+                goals = updatedGoals
+                saveGoals(updatedGoals)
+                showAddGoalDialog = false
+            }
+        )
+    }
+    
+    // Edit Goal Dialog
+    if (showEditGoalDialog && selectedGoal != null) {
+        EditGoalDialog(
+            goal = selectedGoal!!,
+            onDismiss = {
+                showEditGoalDialog = false
+                selectedGoal = null
+            },
+            onSave = { updatedGoal ->
+                val updatedGoals = goals.map { if (it.id == updatedGoal.id) updatedGoal else it }
+                goals = updatedGoals
+                saveGoals(updatedGoals)
+                showEditGoalDialog = false
+                selectedGoal = null
+            }
+        )
+    }
+    
+    // Add Progress Dialog
+    if (showAddProgressDialog && selectedGoal != null) {
+        AddProgressDialog(
+            goal = selectedGoal!!,
+            onDismiss = {
+                showAddProgressDialog = false
+                selectedGoal = null
+            },
+            onAdd = { amount ->
+                val updatedGoal = selectedGoal!!.copy(
+                    currentAmount = selectedGoal!!.currentAmount + amount,
+                    isCompleted = (selectedGoal!!.currentAmount + amount) >= selectedGoal!!.targetAmount
+                )
+                val updatedGoals = goals.map { if (it.id == updatedGoal.id) updatedGoal else it }
+                goals = updatedGoals
+                saveGoals(updatedGoals)
+                
+                // Add transaction to history
+                transactionsViewModel.addTransaction(
+                    description = "Goal Progress: ${selectedGoal!!.title}",
+                    amount = amount,
+                    category = "Goals",
+                    type = TransactionType.EXPENSE,
+                    notes = "Added $${String.format("%.2f", amount)} to goal '${selectedGoal!!.title}'"
+                )
+                
+                showAddProgressDialog = false
+                selectedGoal = null
+            }
+        )
+    }
+    
+    // Remove Progress Dialog
+    if (showRemoveProgressDialog && selectedGoal != null) {
+        RemoveProgressDialog(
+            goal = selectedGoal!!,
+            onDismiss = {
+                showRemoveProgressDialog = false
+                selectedGoal = null
+            },
+            onRemove = { amount: Double ->
+                val newAmount = maxOf(0.0, selectedGoal!!.currentAmount - amount)
+                val updatedGoal = selectedGoal!!.copy(
+                    currentAmount = newAmount,
+                    isCompleted = false // Reset completion status when removing money
+                )
+                val updatedGoals = goals.map { if (it.id == updatedGoal.id) updatedGoal else it }
+                goals = updatedGoals
+                saveGoals(updatedGoals)
+                
+                // Add transaction to history as income (money taken out of goal)
+                transactionsViewModel.addTransaction(
+                    description = "Goal Withdrawal: ${selectedGoal!!.title}",
+                    amount = amount,
+                    category = "Goals",
+                    type = TransactionType.INCOME,
+                    notes = "Removed $${String.format("%.2f", amount)} from goal '${selectedGoal!!.title}'"
+                )
+                
+                showRemoveProgressDialog = false
+                selectedGoal = null
+            }
+        )
     }
 }
 
