@@ -586,48 +586,6 @@ private fun SavingsProgressCard(
     }
 }
 
-@Composable
-private fun TransactionItem(transaction: Transaction) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = transaction.description,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = "${transaction.category} • ${transaction.formattedDate}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
-            
-            Column(horizontalAlignment = Alignment.End) {
-                val amountColor = if (transaction.isIncome) {
-                    Color(0xFF4CAF50)
-                } else {
-                    Color(0xFFF44336)
-                }
-                
-                Text(
-                    text = transaction.formattedAmount,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = amountColor
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun EmptyTransactionsCard() {

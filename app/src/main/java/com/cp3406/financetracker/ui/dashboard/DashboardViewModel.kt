@@ -67,14 +67,14 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
     
     private fun setupDefaultValues() {
-        _currentBalance.value = "$2,450.00"
-        _monthlyIncome.value = "$3,200.00"
-        _monthlyExpenses.value = "$750.00"
-        _budgetProgress.value = 45
-        _activeGoalsCount.value = "3"
-        _totalSavingsProgress.value = "$1,200.00"
+        _currentBalance.value = "$0.00"
+        _monthlyIncome.value = "$0.00"
+        _monthlyExpenses.value = "$0.00"
+        _budgetProgress.value = 0
+        _activeGoalsCount.value = "0"
+        _totalSavingsProgress.value = "$0.00"
         _recentTransactions.value = emptyList()
-        _exchangeRateStatus.value = "Exchange rates: 1 USD = 0.85 EUR, 1 USD = 110 JPY"
+        _exchangeRateStatus.value = "Exchange rates not available"
     }
     
     private fun setupWelcomeMessage() {
@@ -85,7 +85,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             in 17..20 -> "Good evening"
             else -> "Good night"
         }
-        _welcomeMessage.value = "$greeting, John"
+        _welcomeMessage.value = "$greeting!"
     }
     
     private fun observeFinancialData() {
