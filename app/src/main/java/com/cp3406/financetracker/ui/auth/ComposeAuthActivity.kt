@@ -10,7 +10,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.cp3406.financetracker.SafeComposeMainActivity
+import com.cp3406.financetracker.FullComposeMainActivity
 import com.cp3406.financetracker.ui.theme.FinanceTrackerTheme
 
 class ComposeAuthActivity : ComponentActivity() {
@@ -39,8 +39,8 @@ class ComposeAuthActivity : ComponentActivity() {
             ComposeRegisterScreen(
                 onRegisterSuccess = {
                     // Navigate to main app after successful registration
-                    val intent = Intent(this@ComposeAuthActivity, SafeComposeMainActivity::class.java)
-                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    val intent = Intent(this@ComposeAuthActivity, FullComposeMainActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                     startActivity(intent)
                     finish()
                 },
@@ -54,8 +54,8 @@ class ComposeAuthActivity : ComponentActivity() {
             ComposeLoginScreen(
                 onLoginSuccess = {
                     // Navigate to main app after successful login
-                    val intent = Intent(this@ComposeAuthActivity, SafeComposeMainActivity::class.java)
-                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    val intent = Intent(this@ComposeAuthActivity, FullComposeMainActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                     startActivity(intent)
                     finish()
                 },

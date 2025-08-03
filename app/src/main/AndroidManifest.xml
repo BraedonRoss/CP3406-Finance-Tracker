@@ -28,6 +28,12 @@
             </intent-filter>
         </activity>
         
+        <!-- Authentication Activity -->
+        <activity
+            android:name=".ui.auth.ComposeAuthActivity"
+            android:exported="false"
+            android:theme="@style/Theme.FinanceTracker" />
+        
     </application>
 
 </manifest>

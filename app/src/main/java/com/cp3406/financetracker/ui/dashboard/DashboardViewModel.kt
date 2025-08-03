@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.cp3406.financetracker.data.database.FinanceDatabase
 import com.cp3406.financetracker.data.entity.TransactionType
 import com.cp3406.financetracker.data.repository.BudgetRepository
-import com.cp3406.financetracker.data.repository.ExchangeRateRepository
 import com.cp3406.financetracker.data.repository.GoalRepository
 import com.cp3406.financetracker.data.repository.TransactionRepository
 import com.cp3406.financetracker.utils.UserUtils
@@ -22,7 +21,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private lateinit var transactionRepository: TransactionRepository
     private lateinit var budgetRepository: BudgetRepository
     private lateinit var goalRepository: GoalRepository
-    private lateinit var exchangeRateRepository: ExchangeRateRepository
     private fun getCurrencyFormatter(): NumberFormat {
         val application = getApplication<Application>()
         val currencyPrefs = application.getSharedPreferences("currency_prefs", android.content.Context.MODE_PRIVATE)
@@ -69,12 +67,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _recentTransactions = MediatorLiveData<List<com.cp3406.financetracker.ui.transactions.Transaction>>()
     val recentTransactions: LiveData<List<com.cp3406.financetracker.ui.transactions.Transaction>> = _recentTransactions
     
-    // Exchange Rate functionality for international users
-    private val _exchangeRates = MediatorLiveData<Map<String, Double>>()
-    val exchangeRates: LiveData<Map<String, Double>> = _exchangeRates
-    
-    private val _exchangeRateStatus = MediatorLiveData<String>()
-    val exchangeRateStatus: LiveData<String> = _exchangeRateStatus
     
     init {
         try {
@@ -82,11 +74,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             transactionRepository = TransactionRepository(database.transactionDao())
             budgetRepository = BudgetRepository(database.budgetDao())
             goalRepository = GoalRepository(database.goalDao())
-            exchangeRateRepository = ExchangeRateRepository()
             
             setupWelcomeMessage()
             observeFinancialData()
-            fetchLatestExchangeRates()
         } catch (e: Exception) {
             // Fallback to default values if database initialization fails
             setupWelcomeMessage()
@@ -103,7 +93,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             _activeGoalsCount.value = "0"
             _totalSavingsProgress.value = "$0.00"
             _recentTransactions.value = emptyList()
-            _exchangeRateStatus.value = "Exchange rates not available"
         } catch (e: Exception) {
             // If setting default values fails, log the error but don't crash
             android.util.Log.e("DashboardViewModel", "Failed to set default values", e)
@@ -234,45 +223,5 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             }
             _recentTransactions.postValue(recentList)
         }
-    }
-    
-    private fun fetchLatestExchangeRates() {
-        _exchangeRateStatus.value = "Fetching latest exchange rates..."
-        
-        viewModelScope.launch {
-            try {
-                // Get selected currency from SharedPreferences
-                val application = getApplication<Application>()
-                val currencyPrefs = application.getSharedPreferences("currency_prefs", android.content.Context.MODE_PRIVATE)
-                val selectedCurrency = currencyPrefs.getString("selected_currency", "AUD") ?: "AUD"
-                
-                val result = exchangeRateRepository.getLatestExchangeRates(
-                    baseCurrency = selectedCurrency,
-                    targetCurrencies = ExchangeRateRepository.SUPPORTED_CURRENCIES
-                )
-                
-                result.onSuccess { response ->
-                    _exchangeRates.postValue(response.rates)
-                    _exchangeRateStatus.postValue("Exchange rates updated: ${response.date}")
-                }.onFailure { error ->
-                    _exchangeRateStatus.postValue("Failed to fetch rates: ${error.message}")
-                }
-            } catch (e: Exception) {
-                _exchangeRateStatus.postValue("Exchange rate service unavailable")
-            }
-        }
-    }
-    
-    fun convertAmount(amount: Double, fromCurrency: String, toCurrency: String): Double {
-        val rates = _exchangeRates.value ?: return amount
-        return exchangeRateRepository.convertCurrency(amount, fromCurrency, toCurrency, rates)
-    }
-    
-    fun refreshExchangeRates() {
-        fetchLatestExchangeRates()
-    }
-    
-    fun onCurrencyChanged() {
-        fetchLatestExchangeRates()
     }
 }

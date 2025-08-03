@@ -253,3 +253,343 @@ private fun EmptyGoalsCard(
         }
     }
 }
+
+@Composable
+private fun GoalSummaryItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    value: String,
+    label: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+        )
+    }
+}
+
+@Composable
+private fun GoalItem(
+    goal: FinancialGoal,
+    onEdit: () -> Unit,
+    onAddProgress: () -> Unit,
+    onRemoveProgress: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = goal.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Row {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit")
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                    }
+                }
+            }
+            
+            if (goal.description.isNotEmpty()) {
+                Text(
+                    text = goal.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            
+            val progress = if (goal.targetAmount > 0) {
+                (goal.currentAmount / goal.targetAmount).coerceIn(0.0, 1.0).toFloat()
+            } else 0f
+            
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "$${String.format("%.2f", goal.currentAmount)} / $${String.format("%.2f", goal.targetAmount)}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            Text(
+                text = "Target: ${SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(goal.targetDate)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onAddProgress,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add")
+                }
+                
+                if (goal.currentAmount > 0) {
+                    OutlinedButton(
+                        onClick = onRemoveProgress,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Remove")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddGoalDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String, Double, String, String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var targetAmount by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var targetDate by remember { mutableStateOf("Dec 31, 2024") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add New Goal") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Goal Title") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = targetAmount,
+                    onValueChange = { targetAmount = it },
+                    label = { Text("Target Amount") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description (Optional)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val amount = targetAmount.toDoubleOrNull() ?: 0.0
+                    if (title.isNotEmpty() && amount > 0) {
+                        onAdd(title, amount, targetDate, description)
+                    }
+                }
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditGoalDialog(
+    goal: FinancialGoal,
+    onDismiss: () -> Unit,
+    onSave: (FinancialGoal) -> Unit
+) {
+    var title by remember { mutableStateOf(goal.title) }
+    var targetAmount by remember { mutableStateOf(goal.targetAmount.toString()) }
+    var description by remember { mutableStateOf(goal.description) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Goal") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Goal Title") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = targetAmount,
+                    onValueChange = { targetAmount = it },
+                    label = { Text("Target Amount") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val amount = targetAmount.toDoubleOrNull() ?: goal.targetAmount
+                    if (title.isNotEmpty()) {
+                        onSave(goal.copy(title = title, targetAmount = amount, description = description))
+                    }
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddProgressDialog(
+    goal: FinancialGoal,
+    onDismiss: () -> Unit,
+    onAdd: (Double) -> Unit
+) {
+    var amount by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Progress to ${goal.title}") },
+        text = {
+            Column {
+                Text("Current: $${String.format("%.2f", goal.currentAmount)}")
+                Text("Target: $${String.format("%.2f", goal.targetAmount)}")
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount to Add") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val addAmount = amount.toDoubleOrNull() ?: 0.0
+                    if (addAmount > 0) {
+                        onAdd(addAmount)
+                    }
+                }
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RemoveProgressDialog(
+    goal: FinancialGoal,
+    onDismiss: () -> Unit,
+    onRemove: (Double) -> Unit
+) {
+    var amount by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Remove Progress from ${goal.title}") },
+        text = {
+            Column {
+                Text("Current: $${String.format("%.2f", goal.currentAmount)}")
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount to Remove") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val removeAmount = amount.toDoubleOrNull() ?: 0.0
+                    if (removeAmount > 0 && removeAmount <= goal.currentAmount) {
+                        onRemove(removeAmount)
+                    }
+                }
+            ) {
+                Text("Remove")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
