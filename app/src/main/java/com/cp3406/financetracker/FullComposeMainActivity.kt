@@ -1,6 +1,7 @@
 package com.cp3406.financetracker
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -70,10 +72,31 @@ class FullComposeMainActivity : ComponentActivity() {
 fun FullFinanceTrackerApp() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
+    val context = LocalContext.current
     
-    // Check if user is authenticated
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    // Check if user is authenticated reactively
+    var currentUser by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser) }
     val startDestination = if (currentUser != null) "main" else "login"
+    
+    // Listen for authentication state changes
+    DisposableEffect(Unit) {
+        val authStateListener = FirebaseAuth.AuthStateListener { auth ->
+            currentUser = auth.currentUser
+            if (currentUser == null) {
+                // User signed out, navigate to login and clear everything
+                navController.navigate("login") {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+        }
+        FirebaseAuth.getInstance().addAuthStateListener(authStateListener)
+        
+        // Cleanup when composable is disposed
+        onDispose {
+            FirebaseAuth.getInstance().removeAuthStateListener(authStateListener)
+        }
+    }
     
     NavHost(
         navController = navController,
@@ -97,9 +120,12 @@ fun FullFinanceTrackerApp() {
             FullMainAppScreen(
                 onLogout = {
                     FirebaseAuth.getInstance().signOut()
-                    navController.navigate("login") {
-                        popUpTo("main") { inclusive = true }
-                    }
+                    // Force restart the activity to completely reset state
+                    val activity = context as ComponentActivity
+                    val intent = Intent(context, FullComposeMainActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                    activity.finish()
                 }
             )
         }

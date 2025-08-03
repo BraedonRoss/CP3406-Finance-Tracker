@@ -14,13 +14,23 @@ class ThemeViewModel(application: Application) : AndroidViewModel(application) {
     var isDarkModeEnabled by mutableStateOf(sharedPrefs.getBoolean("dark_mode_enabled", false))
         private set
     
+    private val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "dark_mode_enabled") {
+            isDarkModeEnabled = sharedPrefs.getBoolean("dark_mode_enabled", false)
+        }
+    }
+    
     init {
         // Listen for preference changes
-        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "dark_mode_enabled") {
-                isDarkModeEnabled = sharedPrefs.getBoolean("dark_mode_enabled", false)
-            }
-        }
         sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
+    }
+    
+    override fun onCleared() {
+        super.onCleared()
+        sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener)
+    }
+    
+    fun refreshTheme() {
+        isDarkModeEnabled = sharedPrefs.getBoolean("dark_mode_enabled", false)
     }
 }

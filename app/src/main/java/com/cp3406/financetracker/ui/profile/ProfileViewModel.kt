@@ -51,14 +51,14 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         
         // Get user data from Firebase Authentication
         val currentUser = FirebaseAuth.getInstance().currentUser
-        val profile = if (currentUser != null) {
+        if (currentUser != null) {
             val displayName = currentUser.displayName ?: ""
             val nameParts = displayName.split(" ")
             val firstName = nameParts.firstOrNull() ?: "User"
             val lastName = nameParts.drop(1).joinToString(" ").ifEmpty { "" }
             val initials = "${firstName.firstOrNull() ?: "U"}${lastName.firstOrNull() ?: ""}"
             
-            UserProfile(
+            val profile = UserProfile(
                 id = currentUser.uid,
                 firstName = firstName,
                 lastName = lastName,
@@ -67,20 +67,10 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 memberSince = Date(currentUser.metadata?.creationTimestamp ?: System.currentTimeMillis()),
                 preferences = savedPreferences
             )
-        } else {
-            // Fallback profile if no user is logged in
-            UserProfile(
-                id = "guest",
-                firstName = "Guest",
-                lastName = "User",
-                email = "",
-                avatarInitials = "GU",
-                memberSince = Date(),
-                preferences = savedPreferences
-            )
+            
+            _userProfile.value = profile
         }
-
-        _userProfile.value = profile
+        // If no user is logged in, don't set any profile - let the auth system handle redirect
         _preferences.value = savedPreferences
     }
 

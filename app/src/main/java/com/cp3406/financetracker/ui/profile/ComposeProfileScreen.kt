@@ -26,6 +26,7 @@ fun ComposeProfileScreen(
     onSignOut: () -> Unit,
     viewModel: ProfileViewModel = viewModel()
 ) {
+    val themeViewModel: com.cp3406.financetracker.ui.theme.ThemeViewModel = viewModel()
     val userProfile by viewModel.userProfile.observeAsState()
     val preferences by viewModel.preferences.observeAsState()
     
@@ -59,7 +60,11 @@ fun ComposeProfileScreen(
                             subtitle = "Switch between light and dark theme",
                             icon = Icons.Default.Settings,
                             checked = prefs.darkModeEnabled,
-                            onCheckedChange = { viewModel.updateDarkModeSetting(it) }
+                            onCheckedChange = { enabled ->
+                                viewModel.updateDarkModeSetting(enabled)
+                                // Force theme update immediately
+                                themeViewModel.refreshTheme()
+                            }
                         )
                     )
                 )
@@ -138,7 +143,6 @@ fun ComposeProfileScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.signOut()
                         onSignOut()
                         showSignOutDialog = false
                     },

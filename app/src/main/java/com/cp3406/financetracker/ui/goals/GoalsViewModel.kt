@@ -34,24 +34,30 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
         repository = GoalRepository(database.goalDao())
         transactionRepository = TransactionRepository(database.transactionDao())
         
-        val currentUserId = UserUtils.getCurrentUserIdOrDefault()
-        val entityGoals = repository.getAllGoals(currentUserId)
-        _goals.addSource(entityGoals) { entities ->
-            val financialGoals = entities.map { it.toFinancialGoal() }
-            _goals.value = financialGoals
-            
-            // Calculate totals
-            val totalSavedAmount = financialGoals.sumOf { it.currentAmount }
-            _totalSaved.value = totalSavedAmount
-            
-            // Calculate average progress
-            val activeGoals = financialGoals.filter { !it.isCompleted }
-            val avgProgress = if (activeGoals.isNotEmpty()) {
-                activeGoals.map { it.progressPercentage }.average().toFloat()
-            } else 0f
-            _averageProgress.value = avgProgress
+        val currentUserId = UserUtils.getCurrentUserId()
+        if (currentUserId != null) {
+            val entityGoals = repository.getAllGoals(currentUserId)
+            _goals.addSource(entityGoals) { entities ->
+                val financialGoals = entities.map { it.toFinancialGoal() }
+                _goals.value = financialGoals
+                
+                // Calculate totals
+                val totalSavedAmount = financialGoals.sumOf { it.currentAmount }
+                _totalSaved.value = totalSavedAmount
+                
+                // Calculate average progress
+                val activeGoals = financialGoals.filter { !it.isCompleted }
+                val avgProgress = if (activeGoals.isNotEmpty()) {
+                    activeGoals.map { it.progressPercentage }.average().toFloat()
+                } else 0f
+                _averageProgress.value = avgProgress
+            }
+        } else {
+            // No authenticated user - set empty defaults
+            _goals.value = emptyList()
+            _totalSaved.value = 0.0
+            _averageProgress.value = 0f
         }
-        
     }
 
     fun addGoal(
@@ -62,7 +68,7 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
         category: GoalCategory
     ) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             val goal = GoalEntity(
                 userId = currentUserId,
                 title = title,
@@ -77,7 +83,7 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateGoal(updatedGoal: FinancialGoal) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             val goalEntity = GoalEntity(
                 id = updatedGoal.id.toLong(),
                 userId = currentUserId,
@@ -104,21 +110,21 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateGoalProgress(goalId: Long, newAmount: Double) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             repository.updateGoalProgress(goalId, currentUserId, newAmount)
         }
     }
 
     fun markGoalCompleted(goalId: Long) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             repository.markGoalAsCompleted(goalId, currentUserId)
         }
     }
 
     fun deleteGoal(goalId: Long) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             repository.deleteGoalById(goalId, currentUserId)
         }
     }
@@ -129,7 +135,7 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
     
     fun addGoal(title: String, targetAmount: Double, targetDate: String, description: String) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
             val parsedDate = try {
                 dateFormat.parse(targetDate) ?: Date()
@@ -151,7 +157,7 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
     
     fun addProgressToGoal(goalId: String, amount: Double) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             val goalIdLong = goalId.toLong()
             val currentGoal = repository.getGoalById(goalIdLong, currentUserId)
             currentGoal?.let { goal ->
@@ -180,7 +186,7 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
     
     fun removeProgressFromGoal(goalId: String, amount: Double) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             val goalIdLong = goalId.toLong()
             val currentGoal = repository.getGoalById(goalIdLong, currentUserId)
             currentGoal?.let { goal ->

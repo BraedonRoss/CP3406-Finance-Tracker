@@ -23,12 +23,15 @@ class TransactionsViewModel(application: Application) : AndroidViewModel(applica
         val database = FinanceDatabase.getDatabase(application)
         repository = TransactionRepository(database.transactionDao())
         
-        val currentUserId = UserUtils.getCurrentUserIdOrDefault()
-        val entityTransactions = repository.getAllTransactions(currentUserId)
-        _transactions.addSource(entityTransactions) { entities ->
-            _transactions.value = entities.map { it.toTransaction() }
+        val currentUserId = UserUtils.getCurrentUserId()
+        if (currentUserId != null) {
+            val entityTransactions = repository.getAllTransactions(currentUserId)
+            _transactions.addSource(entityTransactions) { entities ->
+                _transactions.value = entities.map { it.toTransaction() }
+            }
+        } else {
+            _transactions.value = emptyList()
         }
-        
     }
 
     fun addTransaction(
@@ -39,7 +42,7 @@ class TransactionsViewModel(application: Application) : AndroidViewModel(applica
         notes: String? = null
     ) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             val transaction = TransactionEntity(
                 userId = currentUserId,
                 description = description,
@@ -55,7 +58,7 @@ class TransactionsViewModel(application: Application) : AndroidViewModel(applica
 
     fun deleteTransaction(transactionId: Long) {
         viewModelScope.launch {
-            val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+            val currentUserId = UserUtils.getCurrentUserId() ?: return@launch
             repository.deleteTransactionById(transactionId, currentUserId)
         }
     }

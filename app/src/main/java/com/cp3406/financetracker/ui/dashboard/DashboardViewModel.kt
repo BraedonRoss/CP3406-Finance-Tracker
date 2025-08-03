@@ -122,7 +122,19 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
     
     private fun observeFinancialData() {
-        val currentUserId = UserUtils.getCurrentUserIdOrDefault()
+        val currentUserId = UserUtils.getCurrentUserId()
+        if (currentUserId == null) {
+            // No authenticated user - set empty defaults
+            _currentBalance.value = getCurrencyFormatter().format(0.0)
+            _monthlyIncome.value = getCurrencyFormatter().format(0.0)
+            _monthlyExpenses.value = getCurrencyFormatter().format(0.0)
+            _budgetProgress.value = 0
+            _activeGoalsCount.value = "0"
+            _totalSavingsProgress.value = getCurrencyFormatter().format(0.0)
+            _recentTransactions.value = emptyList()
+            return
+        }
+        
         val allTransactions = transactionRepository.getAllTransactions(currentUserId)
         
         // Calculate current balance from all transactions
