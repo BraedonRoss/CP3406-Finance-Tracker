@@ -45,7 +45,9 @@ class FullComposeMainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            FinanceTrackerTheme {
+            val themeViewModel: com.cp3406.financetracker.ui.theme.ThemeViewModel = viewModel()
+            
+            FinanceTrackerTheme(darkTheme = themeViewModel.isDarkModeEnabled) {
                 FullFinanceTrackerApp()
             }
         }

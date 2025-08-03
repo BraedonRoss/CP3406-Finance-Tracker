@@ -1,0 +1,26 @@
+package com.cp3406.financetracker.ui.theme
+
+import android.app.Application
+import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.AndroidViewModel
+
+class ThemeViewModel(application: Application) : AndroidViewModel(application) {
+    
+    private val sharedPrefs = application.getSharedPreferences("user_preferences", Context.MODE_PRIVATE)
+    
+    var isDarkModeEnabled by mutableStateOf(sharedPrefs.getBoolean("dark_mode_enabled", false))
+        private set
+    
+    init {
+        // Listen for preference changes
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "dark_mode_enabled") {
+                isDarkModeEnabled = sharedPrefs.getBoolean("dark_mode_enabled", false)
+            }
+        }
+        sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
+    }
+}
