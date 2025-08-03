@@ -163,34 +163,40 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     
     fun clearAllData() {
         viewModelScope.launch {
-            // Clear all database tables
-            transactionRepository.deleteAllTransactions()
-            budgetRepository.deleteAllBudgets()
-            goalRepository.deleteAllGoals()
+            val currentUser = FirebaseAuth.getInstance().currentUser
+            val currentUserId = currentUser?.uid ?: "default_user"
             
-            // Clear SharedPreferences (except basic user settings)
-            sharedPrefs.edit()
-                .remove("notifications_enabled")
-                .remove("dark_mode_enabled") 
-                .remove("selected_currency")
-                .remove("biometric_lock_enabled")
-                .apply()
+            // Clear only the current user's data from database tables
+            transactionRepository.deleteAllUserTransactions(currentUserId)
+            budgetRepository.deleteAllUserBudgets(currentUserId)
+            goalRepository.deleteAllUserGoals(currentUserId)
             
-            // Reset preferences to defaults
-            val defaultPreferences = UserPreferences(
+            // Reset only dark mode preference to default but keep user-specific settings
+            val currentDarkMode = sharedPrefs.getBoolean("dark_mode_enabled", false)
+            val resetPreferences = UserPreferences(
                 notificationsEnabled = true,
                 darkModeEnabled = false,
                 selectedCurrency = "USD",
                 biometricLockEnabled = true
             )
             
-            // Apply light mode when data is cleared
-            applyDarkMode(false)
+            // Save reset preferences to SharedPreferences
+            sharedPrefs.edit()
+                .putBoolean("notifications_enabled", true)
+                .putBoolean("dark_mode_enabled", false)
+                .putString("selected_currency", "USD")
+                .putBoolean("biometric_lock_enabled", true)
+                .apply()
             
-            _preferences.value = defaultPreferences
+            // Apply light mode when data is cleared
+            if (currentDarkMode) {
+                applyDarkMode(false)
+            }
+            
+            _preferences.value = resetPreferences
             
             _userProfile.value?.let { profile ->
-                _userProfile.value = profile.copy(preferences = defaultPreferences)
+                _userProfile.value = profile.copy(preferences = resetPreferences)
             }
         }
     }
