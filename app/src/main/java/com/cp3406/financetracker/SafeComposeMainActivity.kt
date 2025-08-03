@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.FabPosition
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
@@ -26,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -37,7 +40,12 @@ import com.cp3406.financetracker.ui.auth.ComposeAuthActivity
 import com.cp3406.financetracker.ui.budget.BudgetCategory
 import com.cp3406.financetracker.ui.budget.SafeBudgetViewModel
 import com.cp3406.financetracker.ui.theme.FinanceTrackerTheme
+import com.cp3406.financetracker.data.database.FinanceDatabase
+import com.cp3406.financetracker.data.entity.TransactionType
+import com.cp3406.financetracker.ui.transactions.TransactionsViewModel
 import com.google.firebase.auth.FirebaseAuth
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 
 data class SafeBottomNavItem(
     val route: String,
@@ -48,7 +56,7 @@ data class SafeBottomNavItem(
 val safeBottomNavItems = listOf(
     SafeBottomNavItem("dashboard", "Dashboard", Icons.Default.Home),
     SafeBottomNavItem("budget", "Budget", Icons.Default.AccountBox),
-    SafeBottomNavItem("transactions", "Transactions", Icons.Default.List),
+    SafeBottomNavItem("transactions", "History", Icons.Default.List),
     SafeBottomNavItem("goals", "Goals", Icons.Default.Star),
     SafeBottomNavItem("profile", "Profile", Icons.Default.Person)
 )
@@ -113,6 +121,8 @@ fun SafeFinanceTrackerApp(
     onSignOut: () -> Unit = {}
 ) {
     val navController = rememberNavController()
+    var showAddIncomeDialog by remember { mutableStateOf(false) }
+    val transactionsViewModel: TransactionsViewModel = viewModel()
     
     Scaffold(
         bottomBar = {
@@ -137,7 +147,22 @@ fun SafeFinanceTrackerApp(
                     )
                 }
             }
-        }
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddIncomeDialog = true },
+                containerColor = Color(0xFF4CAF50),
+                modifier = Modifier.size(64.dp)
+            ) {
+                Text(
+                    text = "$",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        floatingActionButtonPosition = FabPosition.Center
     ) { innerPadding ->
         NavHost(
             navController = navController,
@@ -163,10 +188,40 @@ fun SafeFinanceTrackerApp(
             }
         }
     }
+    
+    // Global Add Income Dialog
+    if (showAddIncomeDialog) {
+        AddIncomeDialog(
+            onDismiss = { showAddIncomeDialog = false },
+            onAdd = { description: String, amount: Double ->
+                transactionsViewModel.addTransaction(
+                    description = description,
+                    amount = amount,
+                    category = "Income",
+                    type = TransactionType.INCOME
+                )
+                showAddIncomeDialog = false
+            }
+        )
+    }
 }
 
 @Composable
-fun SafeDashboardScreen() {
+fun SafeDashboardScreen(
+    transactionsViewModel: TransactionsViewModel = viewModel()
+) {
+    val transactions by transactionsViewModel.transactions.observeAsState(emptyList())
+    
+    // Calculate real-time values
+    val currentBalance = transactions.sumOf { 
+        if (it.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME) it.amount else -it.amount 
+    }
+    val monthlyIncome = transactions.filter { 
+        it.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME 
+    }.sumOf { it.amount }
+    val monthlyExpenses = transactions.filter { 
+        it.type == com.cp3406.financetracker.ui.transactions.TransactionType.EXPENSE 
+    }.sumOf { it.amount }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -198,7 +253,7 @@ fun SafeDashboardScreen() {
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                     )
                     Text(
-                        text = "$2,450.00",
+                        text = "$${String.format("%.2f", currentBalance)}",
                         style = MaterialTheme.typography.displayMedium,
                         color = MaterialTheme.colorScheme.onPrimary,
                         fontWeight = FontWeight.Bold
@@ -207,45 +262,6 @@ fun SafeDashboardScreen() {
             }
         }
 
-        // Quick Stats Cards
-        item {
-            Text(
-                text = "Financial Overview",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        
-        item {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    SafeStatCard(
-                        title = "Monthly Income",
-                        value = "$3,200.00",
-                        icon = Icons.Default.Add,
-                        backgroundColor = Color(0xFF4CAF50)
-                    )
-                }
-                item {
-                    SafeStatCard(
-                        title = "Monthly Expenses",
-                        value = "$750.00",
-                        icon = Icons.Default.KeyboardArrowDown,
-                        backgroundColor = Color(0xFFF44336)
-                    )
-                }
-                item {
-                    SafeStatCard(
-                        title = "Budget Used",
-                        value = "45%",
-                        icon = Icons.Default.AccountBox,
-                        backgroundColor = Color(0xFF2196F3)
-                    )
-                }
-            }
-        }
 
         // Savings Progress Section
         item {
@@ -273,7 +289,7 @@ fun SafeDashboardScreen() {
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                             Text(
-                                text = "3",
+                                text = "0",
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -287,7 +303,7 @@ fun SafeDashboardScreen() {
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                             Text(
-                                text = "$1,200.00",
+                                text = "$0.00",
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -307,69 +323,55 @@ fun SafeDashboardScreen() {
             )
         }
 
-        // Sample transactions
-        item {
-            SafeTransactionItem(
-                description = "Grocery Shopping",
-                category = "Food",
-                date = "Today",
-                amount = "-$45.67",
-                isIncome = false
-            )
-        }
-        
-        item {
-            SafeTransactionItem(
-                description = "Salary Deposit",
-                category = "Income",
-                date = "Yesterday",
-                amount = "+$3,200.00",
-                isIncome = true
-            )
-        }
-        
-        item {
-            SafeTransactionItem(
-                description = "Coffee Shop",
-                category = "Food",
-                date = "Yesterday",
-                amount = "-$4.50",
-                isIncome = false
-            )
-        }
-
-        // App Status
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
+        // Recent Transactions
+        if (transactions.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "✅ Finance Tracker - Jetpack Compose",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Your budgeting app is now running with Jetpack Compose UI! All your original features (Budget Management, Transaction Tracking, Financial Goals, User Profile) are preserved and working perfectly.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "No transactions yet",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Text(
+                            text = "Start tracking your finances by adding transactions from the Budget tab",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
+        } else {
+            // Show last 3 transactions
+            val recentTransactions = transactions.take(3)
+            items(recentTransactions.size) { index ->
+                val transaction = recentTransactions[index]
+                SafeTransactionItem(
+                    description = transaction.description,
+                    category = transaction.category,
+                    date = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault()).format(transaction.date),
+                    amount = if (transaction.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME) 
+                        "+$${String.format("%.2f", transaction.amount)}" 
+                    else 
+                        "-$${String.format("%.2f", transaction.amount)}",
+                    isIncome = transaction.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME
+                )
+            }
         }
+
     }
 }
 
 @Composable
 fun SafeBudgetScreen(
-    viewModel: SafeBudgetViewModel = viewModel()
+    viewModel: SafeBudgetViewModel = viewModel(),
+    transactionsViewModel: TransactionsViewModel = viewModel()
 ) {
     val budgetCategories by viewModel.budgetCategories.observeAsState(emptyList())
     val totalBudget by viewModel.totalBudget.observeAsState(0.0)
@@ -377,6 +379,10 @@ fun SafeBudgetScreen(
     val isLoading by viewModel.isLoading.observeAsState(false)
     
     var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var showAddTransactionDialog by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<BudgetCategory?>(null) }
+    var showEditCategoryDialog by remember { mutableStateOf(false) }
+    var categoryToEdit by remember { mutableStateOf<BudgetCategory?>(null) }
     
     LazyColumn(
         modifier = Modifier
@@ -439,7 +445,7 @@ fun SafeBudgetScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     LinearProgressIndicator(
-                        progress = (progressPercentage / 100f),
+                        progress = { progressPercentage / 100f },
                         modifier = Modifier.fillMaxWidth(),
                         color = if (progressPercentage > 80) Color(0xFFF44336) else MaterialTheme.colorScheme.primary
                     )
@@ -497,11 +503,16 @@ fun SafeBudgetScreen(
             val category = budgetCategories[index]
             SafeBudgetCategoryItem(
                 category = category,
-                onEdit = { categoryId, newAmount ->
-                    viewModel.updateBudgetCategory(categoryId, newAmount)
+                onEdit = { categoryId, _ ->
+                    categoryToEdit = category
+                    showEditCategoryDialog = true
                 },
                 onDelete = { categoryId ->
                     viewModel.deleteBudgetCategory(categoryId)
+                },
+                onAddTransaction = {
+                    selectedCategory = category
+                    showAddTransactionDialog = true
                 }
             )
         }
@@ -553,13 +564,52 @@ fun SafeBudgetScreen(
             }
         )
     }
+    
+    // Add Transaction Dialog
+    if (showAddTransactionDialog && selectedCategory != null) {
+        AddTransactionDialog(
+            category = selectedCategory!!,
+            onDismiss = { 
+                showAddTransactionDialog = false
+                selectedCategory = null
+            },
+            onAdd = { description: String, amount: Double ->
+                transactionsViewModel.addTransaction(
+                    description = description,
+                    amount = amount,
+                    category = selectedCategory!!.name,
+                    type = TransactionType.EXPENSE
+                )
+                showAddTransactionDialog = false
+                selectedCategory = null
+            }
+        )
+    }
+    
+    
+    // Edit Category Dialog
+    if (showEditCategoryDialog && categoryToEdit != null) {
+        EditBudgetCategoryDialog(
+            category = categoryToEdit!!,
+            onDismiss = {
+                showEditCategoryDialog = false
+                categoryToEdit = null
+            },
+            onSave = { newAmount ->
+                viewModel.updateBudgetCategory(categoryToEdit!!.id, newAmount)
+                showEditCategoryDialog = false
+                categoryToEdit = null
+            }
+        )
+    }
 }
 
 @Composable
 fun SafeBudgetCategoryItem(
     category: BudgetCategory,
     onEdit: (String, Double) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onAddTransaction: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -607,13 +657,34 @@ fun SafeBudgetCategoryItem(
                 modifier = Modifier.fillMaxWidth(),
                 color = if (category.isOverBudget) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
             )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Button(
+                onClick = onAddTransaction,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Transaction",
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Expense")
+            }
         }
     }
 }
 
 
 @Composable
-fun SafeTransactionsScreen() {
+fun SafeTransactionsScreen(
+    transactionsViewModel: TransactionsViewModel = viewModel()
+) {
+    val transactions by transactionsViewModel.transactions.observeAsState(emptyList())
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -643,26 +714,88 @@ fun SafeTransactionsScreen() {
             }
         }
         
-        // Sample transactions
-        val sampleTransactions = listOf(
-            Triple("Salary Deposit", "+$3,200.00", true),
-            Triple("Grocery Shopping", "-$67.89", false),
-            Triple("Coffee Shop", "-$4.50", false),
-            Triple("Gas Station", "-$45.00", false),
-            Triple("Online Purchase", "-$29.99", false),
-            Triple("Freelance Payment", "+$500.00", true),
-            Triple("Restaurant", "-$32.15", false),
-            Triple("Utility Bill", "-$120.00", false)
-        )
-        
-        items(sampleTransactions.size) { index ->
-            val (description, amount, isIncome) = sampleTransactions[index]
-            SafeTransactionItem(
-                description = description,
-                category = if (isIncome) "Income" else "Expense",
-                date = "${index + 1} days ago",
-                amount = amount,
-                isIncome = isIncome
+        // Transactions List
+        if (transactions.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.List,
+                            contentDescription = "No transactions",
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No transactions yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Start tracking your income and expenses by adding transactions from the Budget tab",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            items(transactions.size) { index ->
+                val transaction = transactions[index]
+                TransactionItem(transaction = transaction)
+            }
+        }
+    }
+}
+
+@Composable
+fun TransactionItem(transaction: com.cp3406.financetracker.ui.transactions.Transaction) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = transaction.description,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = transaction.category,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(transaction.date),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+            
+            Text(
+                text = if (transaction.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME) 
+                    "+$${String.format("%.2f", transaction.amount)}" 
+                else 
+                    "-$${String.format("%.2f", transaction.amount)}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (transaction.type == com.cp3406.financetracker.ui.transactions.TransactionType.INCOME) 
+                    Color(0xFF4CAF50) 
+                else 
+                    Color(0xFFF44336)
             )
         }
     }
@@ -701,7 +834,7 @@ fun SafeGoalsScreen() {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Active Goals: 3 | Total Progress: $1,200 saved",
+                        text = "Active Goals: 0 | Total Progress: $0 saved",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -716,17 +849,28 @@ fun SafeGoalsScreen() {
             )
         }
         
-        // Sample goals
+        // No goals yet
         item {
-            SafeGoalItem("Emergency Fund", "$5,000", "$1,200", 24)
-        }
-        
-        item {
-            SafeGoalItem("Vacation Fund", "$2,000", "$450", 22)
-        }
-        
-        item {
-            SafeGoalItem("New Car Down Payment", "$8,000", "$1,600", 20)
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "No goals set yet",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = "Create financial goals to track your progress",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }
@@ -737,9 +881,13 @@ fun SafeProfileScreen(
 ) {
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
+    var showDataWipeDialog by remember { mutableStateOf(false) }
     var isDarkModeEnabled by remember { mutableStateOf(false) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var selectedCurrency by remember { mutableStateOf("USD") }
+    
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     
     LazyColumn(
         modifier = Modifier
@@ -790,7 +938,8 @@ fun SafeProfileScreen(
                         },
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        textAlign = TextAlign.Center
                     )
                     
                     Text(
@@ -800,13 +949,15 @@ fun SafeProfileScreen(
                             "user@example.com" 
                         },
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                        textAlign = TextAlign.Center
                     )
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     OutlinedButton(
                         onClick = { showEditProfileDialog = true },
+                        modifier = Modifier.fillMaxWidth(0.6f),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -823,47 +974,6 @@ fun SafeProfileScreen(
             }
         }
         
-        // Account Statistics
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
-                    Text(
-                        text = "Account Statistics",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        ProfileStatItem(
-                            icon = Icons.Default.DateRange,
-                            value = "342",
-                            label = "Days Active"
-                        )
-                        
-                        ProfileStatItem(
-                            icon = Icons.Default.AccountBox,
-                            value = "6",
-                            label = "Budget Categories"
-                        )
-                        
-                        ProfileStatItem(
-                            icon = Icons.Default.Star,
-                            value = "3",
-                            label = "Goals Achieved"
-                        )
-                    }
-                }
-            }
-        }
         
         // Settings Section
         item {
@@ -895,7 +1005,7 @@ fun SafeProfileScreen(
                         }
                     )
                     
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
                     // Currency Setting
                     ProfileSettingItem(
@@ -905,7 +1015,7 @@ fun SafeProfileScreen(
                         onClick = { showCurrencyDialog = true }
                     )
                     
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
                     // Notifications Toggle
                     ProfileSettingItem(
@@ -920,7 +1030,7 @@ fun SafeProfileScreen(
                         }
                     )
                     
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
                     // Privacy Settings
                     ProfileSettingItem(
@@ -956,7 +1066,7 @@ fun SafeProfileScreen(
                         onClick = { /* Handle help */ }
                     )
                     
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
                     ProfileSettingItem(
                         icon = Icons.Default.Share,
@@ -965,7 +1075,7 @@ fun SafeProfileScreen(
                         onClick = { /* Handle share */ }
                     )
                     
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
                     ProfileSettingItem(
                         icon = Icons.Default.Star,
@@ -1000,13 +1110,22 @@ fun SafeProfileScreen(
                         onClick = { /* Handle data export */ }
                     )
                     
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
                     ProfileSettingItem(
                         icon = Icons.Default.Refresh,
                         title = "Backup & Sync",
                         subtitle = "Last backup: Today at 3:42 PM",
                         onClick = { /* Handle backup */ }
+                    )
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    ProfileSettingItem(
+                        icon = Icons.Default.Delete,
+                        title = "Clear All Data",
+                        subtitle = "Permanently delete all financial data",
+                        onClick = { showDataWipeDialog = true }
                     )
                 }
             }
@@ -1062,6 +1181,372 @@ fun SafeProfileScreen(
             }
         )
     }
+    
+    // Data Wipe Confirmation Dialog
+    if (showDataWipeDialog) {
+        AlertDialog(
+            onDismissRequest = { showDataWipeDialog = false },
+            title = {
+                Text(
+                    text = "Clear All Data",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "This will permanently delete all your financial data including transactions, budgets, and goals. This action cannot be undone.\n\nAre you sure you want to continue?"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            try {
+                                val database = FinanceDatabase.getDatabase(context)
+                                database.clearAllTables()
+                                // Clear SharedPreferences as well
+                                val sharedPrefs = context.getSharedPreferences("user_preferences", Context.MODE_PRIVATE)
+                                sharedPrefs.edit().clear().apply()
+                                showDataWipeDialog = false
+                            } catch (e: Exception) {
+                                // Handle error
+                                showDataWipeDialog = false
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete All Data", color = MaterialTheme.colorScheme.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDataWipeDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun AddBudgetCategoryDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String, Double, String) -> Unit
+) {
+    var categoryName by remember { mutableStateOf("") }
+    var budgetAmount by remember { mutableStateOf("") }
+    
+    val predefinedCategories = listOf(
+        "Food & Dining", "Transportation", "Entertainment", "Utilities", 
+        "Shopping", "Healthcare", "Education", "Travel", "Insurance"
+    )
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Add Budget Category",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Select or enter a category:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    items(predefinedCategories.size) { index ->
+                        val category = predefinedCategories[index]
+                        FilterChip(
+                            onClick = { categoryName = category },
+                            label = { Text(category, fontSize = 12.sp) },
+                            selected = categoryName == category
+                        )
+                    }
+                }
+                
+                OutlinedTextField(
+                    value = categoryName,
+                    onValueChange = { categoryName = it },
+                    label = { Text("Category Name") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = budgetAmount,
+                    onValueChange = { budgetAmount = it },
+                    label = { Text("Budget Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    leadingIcon = {
+                        Text("$", style = MaterialTheme.typography.bodyLarge)
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amount = budgetAmount.toDoubleOrNull()
+                    if (categoryName.isNotBlank() && amount != null && amount > 0) {
+                        onAdd(categoryName, amount, "#2196F3")
+                    }
+                },
+                enabled = categoryName.isNotBlank() && budgetAmount.toDoubleOrNull() != null
+            ) {
+                Text("Add Category")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun AddTransactionDialog(
+    category: BudgetCategory,
+    onDismiss: () -> Unit,
+    onAdd: (String, Double) -> Unit
+) {
+    var description by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Add Expense - ${category.name}",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    singleLine = true,
+                    placeholder = { Text("e.g., Grocery shopping, Gas, etc.") }
+                )
+                
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    leadingIcon = {
+                        Text("$", style = MaterialTheme.typography.bodyLarge)
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val expenseAmount = amount.toDoubleOrNull()
+                    if (description.isNotBlank() && expenseAmount != null && expenseAmount > 0) {
+                        onAdd(description, expenseAmount)
+                    }
+                },
+                enabled = description.isNotBlank() && amount.toDoubleOrNull() != null
+            ) {
+                Text("Add Expense")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun AddIncomeDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String, Double) -> Unit
+) {
+    var description by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Add Income",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Income Source") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    singleLine = true,
+                    placeholder = { Text("e.g., Salary, Freelance, etc.") }
+                )
+                
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    leadingIcon = {
+                        Text("$", style = MaterialTheme.typography.bodyLarge)
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val incomeAmount = amount.toDoubleOrNull()
+                    if (description.isNotBlank() && incomeAmount != null && incomeAmount > 0) {
+                        onAdd(description, incomeAmount)
+                    }
+                },
+                enabled = description.isNotBlank() && amount.toDoubleOrNull() != null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50)
+                )
+            ) {
+                Text("Add Income")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun EditProfileDialog(
+    onDismiss: () -> Unit
+) {
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    
+    // Initialize with current user data
+    LaunchedEffect(Unit) {
+        try {
+            val currentUser = FirebaseAuth.getInstance().currentUser
+            val displayName = currentUser?.displayName ?: ""
+            val nameParts = displayName.split(" ")
+            if (nameParts.isNotEmpty()) {
+                firstName = nameParts[0]
+                if (nameParts.size > 1) {
+                    lastName = nameParts.drop(1).joinToString(" ")
+                }
+            }
+        } catch (e: Exception) {
+            // Handle error
+        }
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Edit Profile",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = firstName,
+                    onValueChange = { firstName = it },
+                    label = { Text("First Name") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    singleLine = true,
+                    enabled = !isLoading
+                )
+                
+                OutlinedTextField(
+                    value = lastName,
+                    onValueChange = { lastName = it },
+                    label = { Text("Last Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !isLoading
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    isLoading = true
+                    try {
+                        val currentUser = FirebaseAuth.getInstance().currentUser
+                        val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                            .setDisplayName("$firstName $lastName".trim())
+                            .build()
+                        
+                        currentUser?.updateProfile(profileUpdates)?.addOnCompleteListener { task ->
+                            isLoading = false
+                            if (task.isSuccessful) {
+                                onDismiss()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        isLoading = false
+                        onDismiss()
+                    }
+                },
+                enabled = !isLoading && firstName.isNotBlank()
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("Save Changes")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 // Helper Composables
@@ -1282,97 +1767,6 @@ private fun RealBudgetCategoryItem(
     }
 }
 
-@Composable
-fun AddBudgetCategoryDialog(
-    onDismiss: () -> Unit,
-    onAdd: (String, Double, String) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var selectedColor by remember { mutableStateOf("#2196F3") }
-    
-    val predefinedColors = listOf(
-        "#2196F3", "#4CAF50", "#FF9800", "#F44336", 
-        "#9C27B0", "#607D8B", "#795548", "#FF5722"
-    )
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add Budget Category") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Category Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Budget Amount") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text("Color:", style = MaterialTheme.typography.bodyMedium)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(predefinedColors.size) { index ->
-                        val color = predefinedColors[index]
-                        Card(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .padding(2.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(android.graphics.Color.parseColor(color))
-                            ),
-                            onClick = { selectedColor = color }
-                        ) {
-                            if (selectedColor == color) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Selected",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val budgetAmount = amount.toDoubleOrNull()
-                    if (name.isNotBlank() && budgetAmount != null && budgetAmount > 0) {
-                        onAdd(name, budgetAmount, selectedColor)
-                    }
-                },
-                enabled = name.isNotBlank() && amount.toDoubleOrNull() != null && amount.toDoubleOrNull()!! > 0
-            ) {
-                Text("Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
 @Composable
 private fun EditBudgetCategoryDialog(
@@ -1571,68 +1965,6 @@ private fun ProfileSettingItem(
     }
 }
 
-@Composable
-private fun EditProfileDialog(
-    onDismiss: () -> Unit
-) {
-    var name by remember { mutableStateOf("John Doe") }
-    var email by remember { mutableStateOf("john.doe@example.com") }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { 
-            Text(
-                "Edit Profile",
-                style = MaterialTheme.typography.headlineSmall
-            ) 
-        },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Full Name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Name"
-                        )
-                    }
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },  
-                    label = { Text("Email Address") },
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Email,
-                            contentDescription = "Email"
-                        )
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = name.isNotBlank() && email.isNotBlank()
-            ) {
-                Text("Save Changes")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
 @Composable
 private fun CurrencySelectionDialog(

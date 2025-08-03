@@ -1,16 +1,28 @@
 package com.cp3406.financetracker.ui.budget
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import com.cp3406.financetracker.data.database.FinanceDatabase
+import com.cp3406.financetracker.data.entity.TransactionType
+import com.cp3406.financetracker.data.repository.TransactionRepository
 import kotlinx.coroutines.launch
 import java.util.*
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 class SafeBudgetViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _budgetCategories = MutableLiveData<List<BudgetCategory>>()
+    private val transactionRepository: TransactionRepository
+    private val sharedPreferences = application.getSharedPreferences("budget_categories", Context.MODE_PRIVATE)
+    private val gson = Gson()
+    private val _storedCategories = MutableLiveData<List<BudgetCategory>>(emptyList())
+    
+    private val _budgetCategories = MediatorLiveData<List<BudgetCategory>>()
     val budgetCategories: LiveData<List<BudgetCategory>> = _budgetCategories
 
     private val _totalBudget = MutableLiveData<Double>()
@@ -23,7 +35,41 @@ class SafeBudgetViewModel(application: Application) : AndroidViewModel(applicati
     val isLoading: LiveData<Boolean> = _isLoading
 
     init {
+        val database = FinanceDatabase.getDatabase(application)
+        transactionRepository = TransactionRepository(database.transactionDao())
+        
         loadBudgetData()
+        observeTransactions()
+    }
+    
+    private fun observeTransactions() {
+        val allTransactions = transactionRepository.getAllTransactions()
+        
+        _budgetCategories.addSource(_storedCategories) { categories ->
+            updateBudgetCategoriesWithTransactions(categories, allTransactions.value ?: emptyList())
+        }
+        
+        _budgetCategories.addSource(allTransactions) { transactions ->
+            val categories = _storedCategories.value ?: emptyList()
+            updateBudgetCategoriesWithTransactions(categories, transactions)
+        }
+    }
+    
+    private fun updateBudgetCategoriesWithTransactions(categories: List<BudgetCategory>, transactions: List<com.cp3406.financetracker.data.entity.TransactionEntity>) {
+        val updatedCategories = categories.map { category ->
+            val spentAmount = transactions
+                .filter { 
+                    it.type == TransactionType.EXPENSE && 
+                    it.category == category.name 
+                }
+                .sumOf { it.amount }
+            
+            category.copy(spentAmount = spentAmount)
+        }
+        
+        _budgetCategories.value = updatedCategories
+        _totalBudget.value = updatedCategories.sumOf { it.budgetAmount }
+        _totalSpent.value = updatedCategories.sumOf { it.spentAmount }
     }
 
     private fun loadBudgetData() {
@@ -31,59 +77,13 @@ class SafeBudgetViewModel(application: Application) : AndroidViewModel(applicati
         
         viewModelScope.launch {
             try {
-                // Sample budget data for demonstration
-                val sampleCategories = listOf(
-                    BudgetCategory(
-                        id = "1",
-                        name = "Food & Dining",
-                        budgetAmount = 500.0,
-                        spentAmount = 180.0,
-                        color = "#FF5722"
-                    ),
-                    BudgetCategory(
-                        id = "2",
-                        name = "Transportation",
-                        budgetAmount = 300.0,
-                        spentAmount = 120.0,
-                        color = "#2196F3"
-                    ),
-                    BudgetCategory(
-                        id = "3",
-                        name = "Entertainment",
-                        budgetAmount = 200.0,
-                        spentAmount = 85.0,
-                        color = "#9C27B0"
-                    ),
-                    BudgetCategory(
-                        id = "4",
-                        name = "Utilities",
-                        budgetAmount = 400.0,
-                        spentAmount = 365.0,
-                        color = "#FF9800"
-                    ),
-                    BudgetCategory(
-                        id = "5",
-                        name = "Shopping",
-                        budgetAmount = 250.0,
-                        spentAmount = 140.0,
-                        color = "#4CAF50"
-                    ),
-                    BudgetCategory(
-                        id = "6",
-                        name = "Healthcare",
-                        budgetAmount = 150.0,
-                        spentAmount = 75.0,
-                        color = "#607D8B"
-                    )
-                )
-                
-                _budgetCategories.value = sampleCategories
-                _totalBudget.value = sampleCategories.sumOf { it.budgetAmount }
-                _totalSpent.value = sampleCategories.sumOf { it.spentAmount }
+                val savedCategories = loadBudgetCategories()
+                _storedCategories.value = savedCategories
+                _totalBudget.value = savedCategories.sumOf { it.budgetAmount }
+                _totalSpent.value = savedCategories.sumOf { it.spentAmount }
                 
             } catch (e: Exception) {
-                // Handle error gracefully
-                _budgetCategories.value = emptyList()
+                _storedCategories.value = emptyList()
                 _totalBudget.value = 0.0
                 _totalSpent.value = 0.0
             } finally {
@@ -91,10 +91,35 @@ class SafeBudgetViewModel(application: Application) : AndroidViewModel(applicati
             }
         }
     }
+    
+    private fun loadBudgetCategories(): List<BudgetCategory> {
+        return try {
+            val json = sharedPreferences.getString("budget_categories_list", null)
+            if (json != null) {
+                val type = object : TypeToken<List<BudgetCategory>>() {}.type
+                gson.fromJson(json, type) ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    
+    private fun saveBudgetCategories(categories: List<BudgetCategory>) {
+        try {
+            val json = gson.toJson(categories)
+            sharedPreferences.edit()
+                .putString("budget_categories_list", json)
+                .apply()
+        } catch (e: Exception) {
+            // Handle save error silently
+        }
+    }
 
     fun addBudgetCategory(name: String, amount: Double, color: String) {
         viewModelScope.launch {
-            val currentCategories = _budgetCategories.value ?: emptyList()
+            val currentCategories = _storedCategories.value ?: emptyList()
             val newCategory = BudgetCategory(
                 id = UUID.randomUUID().toString(),
                 name = name,
@@ -104,15 +129,14 @@ class SafeBudgetViewModel(application: Application) : AndroidViewModel(applicati
             )
             
             val updatedCategories = currentCategories + newCategory
-            _budgetCategories.value = updatedCategories
-            _totalBudget.value = updatedCategories.sumOf { it.budgetAmount }
-            _totalSpent.value = updatedCategories.sumOf { it.spentAmount }
+            _storedCategories.value = updatedCategories
+            saveBudgetCategories(updatedCategories)
         }
     }
 
     fun updateBudgetCategory(categoryId: String, newAmount: Double) {
         viewModelScope.launch {
-            val currentCategories = _budgetCategories.value ?: emptyList()
+            val currentCategories = _storedCategories.value ?: emptyList()
             val updatedCategories = currentCategories.map { category ->
                 if (category.id == categoryId) {
                     category.copy(budgetAmount = newAmount)
@@ -121,19 +145,18 @@ class SafeBudgetViewModel(application: Application) : AndroidViewModel(applicati
                 }
             }
             
-            _budgetCategories.value = updatedCategories
-            _totalBudget.value = updatedCategories.sumOf { it.budgetAmount }
+            _storedCategories.value = updatedCategories
+            saveBudgetCategories(updatedCategories)
         }
     }
 
     fun deleteBudgetCategory(categoryId: String) {
         viewModelScope.launch {
-            val currentCategories = _budgetCategories.value ?: emptyList()
+            val currentCategories = _storedCategories.value ?: emptyList()
             val updatedCategories = currentCategories.filter { it.id != categoryId }
             
-            _budgetCategories.value = updatedCategories
-            _totalBudget.value = updatedCategories.sumOf { it.budgetAmount }
-            _totalSpent.value = updatedCategories.sumOf { it.spentAmount }
+            _storedCategories.value = updatedCategories
+            saveBudgetCategories(updatedCategories)
         }
     }
 
