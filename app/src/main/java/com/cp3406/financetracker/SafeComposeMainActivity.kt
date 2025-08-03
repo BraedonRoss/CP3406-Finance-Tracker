@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -46,6 +45,7 @@ import com.cp3406.financetracker.ui.transactions.TransactionsViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.isSystemInDarkTheme
 
 data class SafeBottomNavItem(
     val route: String,
@@ -65,9 +65,6 @@ class SafeComposeMainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Initialize dark mode
-        initializeDarkMode()
 
         try {
             // Check if user is authenticated
@@ -85,8 +82,18 @@ class SafeComposeMainActivity : ComponentActivity() {
         }
 
         setContent {
-            FinanceTrackerTheme {
+            val sharedPrefs = getSharedPreferences("user_preferences", Context.MODE_PRIVATE)
+            var isDarkModeEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("dark_mode_enabled", false)) }
+            
+            FinanceTrackerTheme(
+                darkTheme = isDarkModeEnabled
+            ) {
                 SafeFinanceTrackerApp(
+                    isDarkModeEnabled = isDarkModeEnabled,
+                    onDarkModeToggle = { enabled ->
+                        isDarkModeEnabled = enabled
+                        sharedPrefs.edit().putBoolean("dark_mode_enabled", enabled).apply()
+                    },
                     onSignOut = {
                         try {
                             FirebaseAuth.getInstance().signOut()
@@ -103,31 +110,26 @@ class SafeComposeMainActivity : ComponentActivity() {
         }
     }
 
-    private fun initializeDarkMode() {
-        val sharedPrefs = getSharedPreferences("user_preferences", Context.MODE_PRIVATE)
-        val isDarkModeEnabled = sharedPrefs.getBoolean("dark_mode_enabled", false)
-        
-        val nightMode = if (isDarkModeEnabled) {
-            AppCompatDelegate.MODE_NIGHT_YES
-        } else {
-            AppCompatDelegate.MODE_NIGHT_NO
-        }
-        AppCompatDelegate.setDefaultNightMode(nightMode)
-    }
 }
 
 @Composable
 fun SafeFinanceTrackerApp(
+    isDarkModeEnabled: Boolean = false,
+    onDarkModeToggle: (Boolean) -> Unit = {},
     onSignOut: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     var showAddIncomeDialog by remember { mutableStateOf(false) }
     val transactionsViewModel: TransactionsViewModel = viewModel()
     
+    // Get current route to conditionally show floating action button
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val showFab = currentRoute in listOf("dashboard", "budget", "transactions")
+    
     Scaffold(
         bottomBar = {
             NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
 
                 safeBottomNavItems.forEach { item ->
@@ -149,17 +151,19 @@ fun SafeFinanceTrackerApp(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddIncomeDialog = true },
-                containerColor = Color(0xFF4CAF50),
-                modifier = Modifier.size(64.dp)
-            ) {
-                Text(
-                    text = "$",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
+            if (showFab) {
+                FloatingActionButton(
+                    onClick = { showAddIncomeDialog = true },
+                    containerColor = Color(0xFF4CAF50),
+                    modifier = Modifier.size(64.dp)
+                ) {
+                    Text(
+                        text = "$",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         },
         floatingActionButtonPosition = FabPosition.Center
@@ -183,6 +187,8 @@ fun SafeFinanceTrackerApp(
             }
             composable("profile") {
                 SafeProfileScreen(
+                    isDarkModeEnabled = isDarkModeEnabled,
+                    onDarkModeToggle = onDarkModeToggle,
                     onSignOut = onSignOut
                 )
             }
@@ -595,7 +601,7 @@ fun SafeBudgetScreen(
                 showEditCategoryDialog = false
                 categoryToEdit = null
             },
-            onSave = { newAmount ->
+            onSave = { newAmount: Double ->
                 viewModel.updateBudgetCategory(categoryToEdit!!.id, newAmount)
                 showEditCategoryDialog = false
                 categoryToEdit = null
@@ -877,12 +883,13 @@ fun SafeGoalsScreen() {
 
 @Composable
 fun SafeProfileScreen(
+    isDarkModeEnabled: Boolean = false,
+    onDarkModeToggle: (Boolean) -> Unit = {},
     onSignOut: () -> Unit = {}
 ) {
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showDataWipeDialog by remember { mutableStateOf(false) }
-    var isDarkModeEnabled by remember { mutableStateOf(false) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var selectedCurrency by remember { mutableStateOf("USD") }
     
@@ -994,13 +1001,13 @@ fun SafeProfileScreen(
                 ) {
                     // Dark Mode Toggle
                     ProfileSettingItem(
-                        icon = Icons.Default.Refresh,
+                        icon = Icons.Default.Settings,
                         title = "Dark Mode",
                         subtitle = if (isDarkModeEnabled) "Enabled" else "Disabled",
                         trailing = {
                             Switch(
                                 checked = isDarkModeEnabled,
-                                onCheckedChange = { isDarkModeEnabled = it }
+                                onCheckedChange = onDarkModeToggle
                             )
                         }
                     )
@@ -1319,135 +1326,7 @@ fun AddBudgetCategoryDialog(
     )
 }
 
-@Composable
-fun AddTransactionDialog(
-    category: BudgetCategory,
-    onDismiss: () -> Unit,
-    onAdd: (String, Double) -> Unit
-) {
-    var description by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Add Expense - ${category.name}",
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    singleLine = true,
-                    placeholder = { Text("e.g., Grocery shopping, Gas, etc.") }
-                )
-                
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Amount") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    leadingIcon = {
-                        Text("$", style = MaterialTheme.typography.bodyLarge)
-                    }
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val expenseAmount = amount.toDoubleOrNull()
-                    if (description.isNotBlank() && expenseAmount != null && expenseAmount > 0) {
-                        onAdd(description, expenseAmount)
-                    }
-                },
-                enabled = description.isNotBlank() && amount.toDoubleOrNull() != null
-            ) {
-                Text("Add Expense")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
-@Composable
-fun AddIncomeDialog(
-    onDismiss: () -> Unit,
-    onAdd: (String, Double) -> Unit
-) {
-    var description by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Add Income",
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Income Source") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    singleLine = true,
-                    placeholder = { Text("e.g., Salary, Freelance, etc.") }
-                )
-                
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Amount") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    leadingIcon = {
-                        Text("$", style = MaterialTheme.typography.bodyLarge)
-                    }
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val incomeAmount = amount.toDoubleOrNull()
-                    if (description.isNotBlank() && incomeAmount != null && incomeAmount > 0) {
-                        onAdd(description, incomeAmount)
-                    }
-                },
-                enabled = description.isNotBlank() && amount.toDoubleOrNull() != null,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
-                )
-            ) {
-                Text("Add Income")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
 @Composable
 fun EditProfileDialog(
@@ -1733,7 +1612,7 @@ private fun RealBudgetCategoryItem(
         EditBudgetCategoryDialog(
             category = category,
             onDismiss = { showEditDialog = false },
-            onSave = { newAmount ->
+            onSave = { newAmount: Double ->
                 onEdit(category.id, newAmount)
                 showEditDialog = false
             }
@@ -1768,46 +1647,6 @@ private fun RealBudgetCategoryItem(
 }
 
 
-@Composable
-private fun EditBudgetCategoryDialog(
-    category: BudgetCategory,
-    onDismiss: () -> Unit,
-    onSave: (Double) -> Unit
-) {
-    var amount by remember { mutableStateOf(category.budgetAmount.toString()) }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit ${category.name}") },
-        text = {
-            OutlinedTextField(
-                value = amount,
-                onValueChange = { amount = it },
-                label = { Text("Budget Amount") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val budgetAmount = amount.toDoubleOrNull()
-                    if (budgetAmount != null && budgetAmount > 0) {
-                        onSave(budgetAmount)
-                    }
-                },
-                enabled = amount.toDoubleOrNull() != null && amount.toDoubleOrNull()!! > 0
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
 @Composable
 private fun SafeGoalItem(
@@ -2022,6 +1861,151 @@ private fun CurrencySelectionDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Done")
+            }
+        }
+    )
+}
+
+// Missing Dialog Components
+
+@Composable
+fun AddIncomeDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String, Double) -> Unit
+) {
+    var description by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Income") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val amountValue = amount.toDoubleOrNull()
+                    if (description.isNotBlank() && amountValue != null && amountValue > 0) {
+                        onAdd(description, amountValue)
+                    }
+                }
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun AddTransactionDialog(
+    category: BudgetCategory,
+    onDismiss: () -> Unit,
+    onAdd: (String, Double) -> Unit
+) {
+    var description by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Expense to ${category.name}") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val amountValue = amount.toDoubleOrNull()
+                    if (description.isNotBlank() && amountValue != null && amountValue > 0) {
+                        onAdd(description, amountValue)
+                    }
+                }
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun EditBudgetCategoryDialog(
+    category: BudgetCategory,
+    onDismiss: () -> Unit,
+    onSave: (Double) -> Unit
+) {
+    var amount by remember { mutableStateOf(category.budgetAmount.toString()) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit ${category.name}") },
+        text = {
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it },
+                label = { Text("Budget Amount") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val budgetAmount = amount.toDoubleOrNull()
+                    if (budgetAmount != null && budgetAmount > 0) {
+                        onSave(budgetAmount)
+                    }
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
     )
