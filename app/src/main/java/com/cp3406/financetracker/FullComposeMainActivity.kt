@@ -110,7 +110,21 @@ fun FullFinanceTrackerApp() {
                     }
                 },
                 onNavigateToRegister = {
-                    // For now, just show a message - can implement later
+                    navController.navigate("register")
+                },
+                authViewModel = authViewModel
+            )
+        }
+        
+        composable("register") {
+            com.cp3406.financetracker.ui.auth.ComposeRegisterScreen(
+                onRegisterSuccess = {
+                    navController.navigate("main") {
+                        popUpTo("register") { inclusive = true }
+                    }
+                },
+                onNavigateToLogin = {
+                    navController.popBackStack()
                 },
                 authViewModel = authViewModel
             )
